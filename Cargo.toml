@@ -4,7 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+clap = "4.4.10"
+env_logger = "0.10.1"
 json = "0.12.4"
-metaculustetra = "0.0.5"
+log = "0.4.20"
 reqwest = { version = "0.11.22" , features = ["blocking"] }
 sqlite = "0.32.0"

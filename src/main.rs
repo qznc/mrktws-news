@@ -1,39 +1,72 @@
 mod model;
+mod platforms;
 use crate::model::*;
+use crate::platforms::*;
+use clap::{Arg, ArgAction, Command};
+use log::*;
 
-use metaculustetra::Metaculus;
-use std::env;
+fn arguments() -> Command {
+    Command::new("marketwise-news")
+        .version("0.1")
+        .arg(
+            Arg::new("database")
+                .long("database")
+                .default_value(":memory:")
+                .help("SQLite database to use"),
+        )
+        .arg(
+            Arg::new("get_some")
+                .long("get-some")
+                .action(ArgAction::SetTrue)
+                .help("fetch random market info"),
+        )
+}
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    let db = if args.len() == 2 {
-        Model::new(args[1].as_str())
-    } else {
-        Model::new(":memory:")
-    };
-    //if let Ok(_f64) = db.update_prob(Market::Metaculus, "3682", 0.93) {}
-
-    let m = Metaculus::standard();
-    let q = m.get_question("3682").expect("got question");
-    let p = q.get_best_prediction().expect("got prediction");
-    println!("M {}: {:?}", q.title_short, p);
-
-    let response = reqwest::blocking::get(
-        "https://manifold.markets/api/v0/search-markets?limit=5&sort=24-hour-vol&term=",
-    )
-    .unwrap()
-    .text()
-    .expect("body");
-    if let Ok(j) = json::parse(response.as_str()) {
-        for o in j.members() {
-            let question = o["question"].clone();
-            let traders = o["uniqueBettorCount"].clone();
-            let prob = o["probability"].as_f32().unwrap_or(-1.0);
-            let id = o["slug"].as_str().unwrap_or("xxx");
-            println!("{} {}", question, prob);
-            if let Ok(_f64) = db.update_prob(Market::Manifold, id, prob) {}
+    env_logger::init();
+    let args = arguments().get_matches();
+    let db = Model::new(args.get_one::<String>("database").unwrap());
+    let platforms: Vec<Box<dyn PlatformAPI>> = match args.get_flag("get_some") {
+        true => {
+            vec![
+                Box::new(Manifold {}),
+                Box::new(Metaculus {}),
+                Box::new(Polymarket {}),
+            ]
         }
-    } else {
-        dbg!(response);
+        false => {
+            vec![]
+        }
     };
+
+    for p in platforms {
+        for s in p.some_markets() {
+            let p = s.platform.to_string();
+            if s.prob > 0.0 && s.prob <= 1.0 {
+                info!("update {} {} {}", p, s.id.clone(), s.prob);
+                if let Ok(_f64) = db.update_prob(p.as_str(), s.id, s.prob) {}
+            } else {
+                debug!("ignore {} {} {}", p, s.id, s.prob);
+            }
+        }
+    }
+
+    for q in db.outdated_questions() {
+        info!("outdated: {:?}", q);
+        let p = get_platform(&q.0).expect("platform");
+        let status = (*p).update_market(&q.1);
+        match status {
+            Some(s) => {
+                let _ = db.update_prob(q.0.as_str(), s.id, s.prob);
+            }
+            None => {
+                warn!("Updating failed: {:?}", q);
+            }
+        }
+    }
+
+    for q in db.biggest_changes_daily() {
+        info!("change! {:?}", q);
+        // TODO report news
+    }
 }
