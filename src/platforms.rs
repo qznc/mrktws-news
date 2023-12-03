@@ -59,7 +59,7 @@ impl PlatformAPI for Manifold {
         Platform::Manifold
     }
     fn some_markets(&self) -> Vec<MarketStatus> {
-        let url = "https://manifold.markets/api/v0/search-markets?limit=10&sort=24-hour-vol&term=";
+        let url = "https://manifold.markets/api/v0/search-markets?limit=20&sort=last-updated&term=";
         let response = reqwest::blocking::get(url).unwrap().text().expect("body");
         let mut ret = vec![];
         if let Ok(j) = json::parse(response.as_str()) {

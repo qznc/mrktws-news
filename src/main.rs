@@ -65,8 +65,8 @@ fn main() {
         }
     }
 
-    for q in db.biggest_changes_daily() {
-        info!("change! {:?}", q);
-        // TODO report news
-    }
+    let q = db.most_noteworthy_change();
+    info!("change! {:?}", q);
+    println!("Most noteworth change: {}", as_change_str(&q));
+    // TODO report news
 }
