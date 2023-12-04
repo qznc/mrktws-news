@@ -1,3 +1,4 @@
+use chrono::prelude::*;
 use log::*;
 use sqlite::Connection;
 
@@ -16,7 +17,13 @@ impl Model {
 
     /// Archive new probability info
     /// Returns previous probability
-    pub fn update_prob(&self, platform: &str, id: String, prob: f32) -> Result<f64, &str> {
+    pub fn update_prob(
+        &self,
+        time: DateTime<Utc>,
+        platform: &str,
+        id: String,
+        prob: f32,
+    ) -> Result<f64, &str> {
         // first retrieve previous probability
         let check =
             "SELECT prob FROM probabilities WHERE platform = ? AND id = ? ORDER BY time DESC LIMIT 1;";
@@ -33,6 +40,7 @@ impl Model {
             Err("no previous probability")
         };
         // now insert new probability
+        debug!("update time: {}", time);
         let query = "INSERT INTO probabilities (prob,platform,id) VALUES (?,?,?);";
         let mut stmt = self.c.prepare(query).expect("prepare prob update");
         stmt.bind((1, prob as f64)).expect("bind 1");

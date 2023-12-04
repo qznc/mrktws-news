@@ -1,3 +1,4 @@
+use chrono::prelude::*;
 use log::*;
 use std::fmt;
 
@@ -50,6 +51,7 @@ pub struct MarketStatus {
     pub platform: Platform,
     pub id: String,
     pub prob: f32,
+    pub time: DateTime<Utc>,
 }
 
 pub struct Manifold {}
@@ -68,10 +70,16 @@ impl PlatformAPI for Manifold {
                 let _traders = o["uniqueBettorCount"].clone();
                 let prob = o["probability"].as_f32().unwrap_or(-1.0);
                 let id = o["id"].to_string();
+                if o["lastBetTime"].is_null() {
+                    continue; // no bet yet
+                }
+                let t = o["lastBetTime"].as_f64().expect("timestamp") as i64;
+                let time = DateTime::from_timestamp(t / 1000, 0).expect("timestamp");
                 let status = MarketStatus {
                     platform: Platform::Manifold,
                     id,
                     prob,
+                    time,
                 };
                 ret.push(status);
             }
@@ -87,10 +95,13 @@ impl PlatformAPI for Manifold {
         match json::parse(response.as_str()) {
             Ok(j) => {
                 let prob = j["probability"].as_f32().unwrap();
+                let t = j["lastBetTime"].as_f64().expect("timestamp") as i64;
+                let time = DateTime::from_timestamp(t / 1000, 0).expect("timestamp");
                 Option::Some(MarketStatus {
                     platform: self.id(),
                     id: id.clone(),
                     prob,
+                    time,
                 })
             }
             Err(e) => {
@@ -119,10 +130,17 @@ impl PlatformAPI for Metaculus {
                     .as_f32()
                     .unwrap_or(-1.0);
                 let id = o["id"].to_string();
+                let t = o["last_activity_time"]
+                    .as_str()
+                    .expect("last_activity_time");
+                let time: DateTime<Utc> = DateTime::parse_from_rfc3339(t)
+                    .expect("iso8601")
+                    .with_timezone(&Utc);
                 let status = MarketStatus {
                     platform: self.id(),
                     id,
                     prob,
+                    time,
                 };
                 ret.push(status);
             }
@@ -140,10 +158,17 @@ impl PlatformAPI for Metaculus {
                 let prob = j["community_prediction"]["full"]["q2"]
                     .as_f32()
                     .unwrap_or(-1.0);
+                let t = j["last_activity_time"]
+                    .as_str()
+                    .expect("last_activity_time");
+                let time: DateTime<Utc> = DateTime::parse_from_rfc3339(t)
+                    .expect("iso8601")
+                    .with_timezone(&Utc);
                 Option::Some(MarketStatus {
                     platform: self.id(),
                     id: id.clone(),
                     prob,
+                    time,
                 })
             }
             Err(e) => {
@@ -162,8 +187,12 @@ impl PlatformAPI for Polymarket {
     }
     fn some_markets(&self) -> Vec<MarketStatus> {
         let mut ret = vec![];
-        let query = r#"{ markets(limit: 10, order: "liquidity DESC") { question, outcomePrices, slug, volume24hr, liquidity } }"#;
-        let json_query = format!(r#"{{"query": "{}"}}"#, query.replace(r#"""#, r#"\""#));
+        let query = r#"{ markets(limit: 10, order: "liquidity DESC")
+                       { question, outcomePrices, slug, volume24hr, liquidity, updatedAt} }"#;
+        let json_query = format!(
+            r#"{{"query": "{}"}}"#,
+            query.replace(r#"""#, r#"\""#).replace("\n", "")
+        );
         let graphql_endpoint = "https://gamma-api.polymarket.com/query";
         let client = reqwest::blocking::Client::new();
         let response = client
@@ -181,10 +210,16 @@ impl PlatformAPI for Polymarket {
                 let prices = json::parse(o["outcomePrices"].as_str().unwrap()).expect("valid json");
                 let prob = prices[0].to_string().parse::<f32>().expect("parsed float");
                 let id = o["slug"].to_string();
+                let t = o["updatedAt"].as_str().expect("updatedAt");
+                let time: DateTime<Utc> = DateTime::parse_from_rfc3339(t)
+                    .expect("iso8601")
+                    .with_timezone(&Utc);
+                debug!("updatedAt {}", time);
                 let status = MarketStatus {
                     platform: Platform::Polymarket,
                     id,
                     prob,
+                    time,
                 };
                 ret.push(status);
             }
@@ -194,10 +229,14 @@ impl PlatformAPI for Polymarket {
         ret
     }
     fn update_market(&self, id: &String) -> Option<MarketStatus> {
-        let query = r#"{ markets(limit: 1, where: "slug = 'XXX'") { question, outcomePrices, slug, volume24hr, liquidity } }"#;
+        let query = r#"{ markets(limit: 1, where: "slug = 'XXX'")
+                       { question, outcomePrices, slug, volume24hr, liquidity, updatedAt} }"#;
         let json_query = format!(
             r#"{{"query": "{}"}}"#,
-            query.replace(r#"""#, r#"\""#).replace("XXX", id)
+            query
+                .replace(r#"""#, r#"\""#)
+                .replace("XXX", id)
+                .replace("\n", "")
         );
         let graphql_endpoint = "https://gamma-api.polymarket.com/query";
         let client = reqwest::blocking::Client::new();
@@ -215,10 +254,15 @@ impl PlatformAPI for Polymarket {
                     json::parse(j["data"]["markets"][0]["outcomePrices"].as_str().unwrap())
                         .expect("valid json");
                 let prob = prices[0].to_string().parse::<f32>().expect("parsed float");
+                let t = j["updatedAt"].as_str().expect("updatedAt");
+                let time: DateTime<Utc> = DateTime::parse_from_rfc3339(t)
+                    .expect("iso8601")
+                    .with_timezone(&Utc);
                 Option::Some(MarketStatus {
                     platform: self.id(),
                     id: id.clone(),
                     prob,
+                    time,
                 })
             }
             Err(e) => {

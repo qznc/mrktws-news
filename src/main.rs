@@ -44,7 +44,7 @@ fn main() {
             let p = s.platform.to_string();
             if s.prob > 0.0 && s.prob <= 1.0 {
                 info!("update {} {} {}", p, s.id.clone(), s.prob);
-                if let Ok(_f64) = db.update_prob(p.as_str(), s.id, s.prob) {}
+                if let Ok(_f64) = db.update_prob(s.time, p.as_str(), s.id, s.prob) {}
             } else {
                 debug!("ignore {} {} {}", p, s.id, s.prob);
             }
@@ -57,7 +57,7 @@ fn main() {
         let status = (*p).update_market(&q.1);
         match status {
             Some(s) => {
-                let _ = db.update_prob(q.0.as_str(), s.id, s.prob);
+                let _ = db.update_prob(s.time, q.0.as_str(), s.id, s.prob);
             }
             None => {
                 warn!("Updating failed: {:?}", q);

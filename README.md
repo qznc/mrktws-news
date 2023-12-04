@@ -10,7 +10,6 @@ However, multi-choice might also be a "market group" if parts resolve separately
 
 ## Next Steps
 
-* Feature: Update the most outdated predictions (requires time to pass)
-* Feature: Show most interesting change
-* Design: What means "interesting"?
+* Feature: Update multiple time stamps at once
+* Feature: Store details to have title available
 * Feature: Fediverse posting
