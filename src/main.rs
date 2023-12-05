@@ -44,29 +44,17 @@ fn main() {
             let p = s.platform.to_string();
             if s.prob > 0.0 && s.prob <= 1.0 {
                 info!("update {} {} {}", p, s.id.clone(), s.prob);
-                if let Ok(_f64) = db.update_prob(s.time, p.as_str(), s.id, s.prob) {}
+                if let Ok(_f64) = db.update_prob(s.time, p.as_str(), s.id, s.prob, s.url, s.title) {
+                }
             } else {
                 debug!("ignore {} {} {}", p, s.id, s.prob);
             }
         }
     }
 
-    for q in db.outdated_questions() {
-        info!("outdated: {:?}", q);
-        let p = get_platform(&q.0).expect("platform");
-        let status = (*p).update_market(&q.1);
-        match status {
-            Some(s) => {
-                let _ = db.update_prob(s.time, q.0.as_str(), s.id, s.prob);
-            }
-            None => {
-                warn!("Updating failed: {:?}", q);
-            }
-        }
+    if let Some(q) = db.most_noteworthy_change() {
+        info!("change! {:?}", q);
+        println!("Most noteworth change: {}", as_change_str(&q));
+        // TODO report news
     }
-
-    let q = db.most_noteworthy_change();
-    info!("change! {:?}", q);
-    println!("Most noteworth change: {}", as_change_str(&q));
-    // TODO report news
 }

@@ -52,6 +52,8 @@ pub struct MarketStatus {
     pub id: String,
     pub prob: f32,
     pub time: DateTime<Utc>,
+    pub url: String,
+    pub title: String,
 }
 
 pub struct Manifold {}
@@ -75,11 +77,15 @@ impl PlatformAPI for Manifold {
                 }
                 let t = o["lastBetTime"].as_f64().expect("timestamp") as i64;
                 let time = DateTime::from_timestamp(t / 1000, 0).expect("timestamp");
+                let url = o["url"].to_string();
+                let title = o["question"].to_string();
                 let status = MarketStatus {
                     platform: Platform::Manifold,
                     id,
                     prob,
                     time,
+                    url,
+                    title,
                 };
                 ret.push(status);
             }
@@ -97,11 +103,15 @@ impl PlatformAPI for Manifold {
                 let prob = j["probability"].as_f32().unwrap();
                 let t = j["lastBetTime"].as_f64().expect("timestamp") as i64;
                 let time = DateTime::from_timestamp(t / 1000, 0).expect("timestamp");
+                let url = j["url"].to_string();
+                let title = j["question"].to_string();
                 Option::Some(MarketStatus {
                     platform: self.id(),
                     id: id.clone(),
                     prob,
                     time,
+                    url,
+                    title,
                 })
             }
             Err(e) => {
@@ -136,11 +146,15 @@ impl PlatformAPI for Metaculus {
                 let time: DateTime<Utc> = DateTime::parse_from_rfc3339(t)
                     .expect("iso8601")
                     .with_timezone(&Utc);
+                let url = o["url"].to_string();
+                let title = o["title"].to_string();
                 let status = MarketStatus {
                     platform: self.id(),
                     id,
                     prob,
                     time,
+                    url,
+                    title,
                 };
                 ret.push(status);
             }
@@ -164,11 +178,15 @@ impl PlatformAPI for Metaculus {
                 let time: DateTime<Utc> = DateTime::parse_from_rfc3339(t)
                     .expect("iso8601")
                     .with_timezone(&Utc);
+                let url = j["url"].to_string();
+                let title = j["title"].to_string();
                 Option::Some(MarketStatus {
                     platform: self.id(),
                     id: id.clone(),
                     prob,
                     time,
+                    url,
+                    title,
                 })
             }
             Err(e) => {
@@ -215,11 +233,15 @@ impl PlatformAPI for Polymarket {
                     .expect("iso8601")
                     .with_timezone(&Utc);
                 debug!("updatedAt {}", time);
+                let url = o["url"].to_string();
+                let title = o["title"].to_string();
                 let status = MarketStatus {
                     platform: Platform::Polymarket,
                     id,
                     prob,
                     time,
+                    url,
+                    title,
                 };
                 ret.push(status);
             }
@@ -258,11 +280,15 @@ impl PlatformAPI for Polymarket {
                 let time: DateTime<Utc> = DateTime::parse_from_rfc3339(t)
                     .expect("iso8601")
                     .with_timezone(&Utc);
+                let url = j["url"].to_string();
+                let title = j["title"].to_string();
                 Option::Some(MarketStatus {
                     platform: self.id(),
                     id: id.clone(),
                     prob,
                     time,
+                    url,
+                    title,
                 })
             }
             Err(e) => {

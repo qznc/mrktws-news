@@ -23,6 +23,8 @@ impl Model {
         platform: &str,
         id: String,
         prob: f32,
+        url: String,
+        title: String,
     ) -> Result<f64, &str> {
         // first retrieve previous probability
         let check =
@@ -47,34 +49,19 @@ impl Model {
         stmt.bind((2, platform)).expect("bind 2");
         stmt.bind((3, id.as_str())).expect("bind 3");
         stmt.next().expect("bind");
+        // save details
+        let query = "INSERT OR REPLACE INTO details (platform,id,title,url) VALUES(?,?,?,?);";
+        let mut stmt = self.c.prepare(query).expect("prepare detail update");
+        stmt.bind((1, platform)).expect("bind 1");
+        stmt.bind((2, id.as_str())).expect("bind 2");
+        stmt.bind((3, title.as_str())).expect("bind 3");
+        stmt.bind((4, url.as_str())).expect("bind 4");
+        stmt.next().expect("bind");
         prev_prob
     }
 
-    pub fn outdated_questions(&self) -> Vec<(String, String)> {
-        let mut ret: Vec<(String, String)> = vec![];
-        let q = "SELECT platform, id, MAX(time) AS last_update_time
-FROM probabilities
-GROUP BY platform, id
-ORDER BY last_update_time ASC
-LIMIT 2;";
-        let mut s = self.c.prepare(q).expect("query bound");
-        while let Ok(sqlite::State::Row) = s.next() {
-            let platform = s.read::<String, _>("platform").expect("platform field");
-            let id = s.read::<String, _>("id").expect("id field");
-            ret.push((platform, id));
-        }
-        ret
-    }
-
-    pub fn most_noteworthy_change(&self) -> Change {
-        let mut most_noteworthy = Change {
-            platform: "x".to_string(),
-            id: "x".to_string(),
-            duration: Duration::Week,
-            p_before: 0.5,
-            p_after: 0.5,
-        };
-
+    pub fn most_noteworthy_change(&self) -> Option<Change> {
+        let mut most_noteworthy = Change::new(Duration::Week, 0.5);
         let timestamps = query_timestamps(&self.c);
         info!("found {} candidates for news", timestamps.len());
         for ts in timestamps {
@@ -99,8 +86,11 @@ LIMIT 2;";
                 }
             }
         }
-
-        most_noteworthy
+        if most_noteworthy.url == "url" {
+            Option::None
+        } else {
+            Option::Some(most_noteworthy)
+        }
     }
 }
 
@@ -118,6 +108,8 @@ pub struct Change {
     duration: Duration,
     p_before: f32,
     p_after: f32,
+    url: String,
+    title: String,
 }
 
 impl PartialOrd for Change {
@@ -125,6 +117,20 @@ impl PartialOrd for Change {
         let diff_left = (self.p_after - self.p_before).abs() * diff_factor(self.duration);
         let diff_right = (other.p_after - other.p_before).abs() * diff_factor(other.duration);
         diff_left.partial_cmp(&diff_right)
+    }
+}
+
+impl Change {
+    fn new(duration: Duration, p_after: f32) -> Self {
+        Change {
+            platform: "platform".to_string(),
+            id: "id".to_string(),
+            duration,
+            p_before: 0.5,
+            p_after,
+            url: "url".to_string(),
+            title: "title".to_string(),
+        }
     }
 }
 
@@ -141,65 +147,29 @@ mod tests {
     use super::*;
     #[test]
     fn change_comparison() {
-        let change = Change {
-            platform: "x".to_string(),
-            id: "x".to_string(),
-            duration: Duration::Day,
-            p_before: 0.5,
-            p_after: 0.4,
-        };
-        assert!(
-            change
-                < Change {
-                    platform: "x".to_string(),
-                    id: "x".to_string(),
-                    duration: Duration::Day,
-                    p_before: 0.5,
-                    p_after: 0.1,
-                }
-        );
-        assert!(
-            change
-                < Change {
-                    platform: "x".to_string(),
-                    id: "x".to_string(),
-                    duration: Duration::Day,
-                    p_before: 0.5,
-                    p_after: 0.9,
-                }
-        );
-        assert!(
-            change
-                < Change {
-                    platform: "x".to_string(),
-                    id: "x".to_string(),
-                    duration: Duration::Hour,
-                    p_before: 0.5,
-                    p_after: 0.45,
-                }
-        );
-        assert!(
-            change
-                < Change {
-                    platform: "x".to_string(),
-                    id: "x".to_string(),
-                    duration: Duration::Week,
-                    p_before: 0.5,
-                    p_after: 0.1,
-                }
-        );
+        let a = Change::new(Duration::Day, 0.4);
+        let b = Change::new(Duration::Day, 0.1);
+        assert!(a < b);
+        let b = Change::new(Duration::Day, 0.9);
+        assert!(a < b);
+        let b = Change::new(Duration::Hour, 0.45);
+        assert!(a < b);
+        let b = Change::new(Duration::Week, 0.1);
+        assert!(a < b);
     }
 }
 
 pub fn as_change_str(c: &Change) -> String {
     format!(
-        "{:.1}% in {}",
+        "{:.1}% in {}: {}\n{}",
         100.0 * (c.p_after - c.p_before),
         match c.duration {
             Duration::Hour => "an hour",
             Duration::Day => "a day",
             Duration::Week => "a week",
-        }
+        },
+        c.title,
+        c.url,
     )
 }
 
@@ -211,13 +181,18 @@ fn timestamp_to_change(
     duration: Duration,
 ) -> Option<Change> {
     let ts = t?;
-    let p_before = get_prob_by_time(c, timestamp.platform.as_str(), timestamp.id.as_str(), &ts)?;
+    let platform = timestamp.platform.as_str();
+    let id = timestamp.id.as_str();
+    let p_before = get_prob_by_time(c, platform, id, &ts)?;
+    let u_t = get_details(c, platform, id);
     Option::Some(Change {
         platform: timestamp.platform.clone(),
         id: timestamp.id.clone(),
         duration,
         p_before,
         p_after: p_now,
+        url: u_t.0,
+        title: u_t.1,
     })
 }
 
@@ -247,14 +222,28 @@ fn get_prob_by_time(c: &Connection, platform: &str, id: &str, time: &str) -> Opt
     }
 }
 
+fn get_details(c: &Connection, platform: &str, id: &str) -> (String, String) {
+    let query = "SELECT url, title FROM details WHERE platform=? AND id=?;";
+    let mut s = c.prepare(query).expect("prepare");
+    s.bind((1, platform)).expect("bind 1");
+    s.bind((2, id)).expect("bind 2");
+    if let Ok(sqlite::State::Row) = s.next() {
+        let url = s.read::<String, _>("url").expect("url");
+        let title = s.read::<String, _>("title").expect("title");
+        (url, title)
+    } else {
+        ("?".to_string(), "??".to_string())
+    }
+}
+
 fn query_timestamps(c: &Connection) -> Vec<Timestamps> {
     let mut ret = vec![];
     let query = format!(
         " SELECT platform, id,
 MAX(time) AS latest_time,
-MAX(CASE WHEN time <= DATETIME(CURRENT_TIMESTAMP, '-1 hour') THEN time END) AS time_1_hour_ago,
-MAX(CASE WHEN time <= DATETIME(CURRENT_TIMESTAMP, '-1 day') THEN time END) AS time_1_day_ago,
-MAX(CASE WHEN time <= DATETIME(CURRENT_TIMESTAMP, '-7 days') THEN time END) AS time_1_week_ago
+MAX(CASE WHEN time >= DATETIME(CURRENT_TIMESTAMP, '-45 minutes') AND time <= DATETIME(CURRENT_TIMESTAMP, '-69 minutes')THEN time END) AS time_1_hour_ago,
+MAX(CASE WHEN time >= DATETIME(CURRENT_TIMESTAMP, '-22 hours') AND time <= DATETIME(CURRENT_TIMESTAMP, '-28 hours') THEN time END) AS time_1_day_ago,
+MAX(CASE WHEN time >= DATETIME(CURRENT_TIMESTAMP, '-6 day') AND time <= DATETIME(CURRENT_TIMESTAMP, '-8 days') THEN time END) AS time_1_week_ago
 FROM probabilities
 GROUP BY platform, id
 HAVING latest_time <> time_1_hour_ago; "
