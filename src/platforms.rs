@@ -62,31 +62,60 @@ impl PlatformAPI for Manifold {
         Platform::Manifold
     }
     fn some_markets(&self) -> Vec<MarketStatus> {
-        let url = "https://manifold.markets/api/v0/search-markets?limit=20&sort=last-updated&term=";
+        let url = "https://manifold.markets/api/v0/search-markets?limit=50&sort=last-updated&term=";
         let response = reqwest::blocking::get(url).unwrap().text().expect("body");
         let mut ret = vec![];
         if let Ok(j) = json::parse(response.as_str()) {
             for o in j.members() {
-                let _question = o["question"].clone();
-                let _traders = o["uniqueBettorCount"].clone();
-                let prob = o["probability"].as_f32().unwrap_or(-1.0);
-                let id = o["id"].to_string();
-                if o["lastBetTime"].is_null() {
-                    continue; // no bet yet
+                if 20 > o["uniqueBettorCount"].as_i32().expect("bettor count") {
+                    continue; // not enough bettors
                 }
-                let t = o["lastBetTime"].as_f64().expect("timestamp") as i64;
-                let time = DateTime::from_timestamp(t / 1000, 0).expect("timestamp");
+                if 200.0 > o["volume"].as_f32().expect("volume") {
+                    continue; // not enough volume
+                }
+                let id = o["id"].to_string();
                 let url = o["url"].to_string();
                 let title = o["question"].to_string();
-                let status = MarketStatus {
-                    platform: Platform::Manifold,
-                    id,
-                    prob,
-                    time,
-                    url,
-                    title,
-                };
-                ret.push(status);
+                let t = o["lastBetTime"].as_f64().expect("timestamp") as i64;
+                let time = DateTime::from_timestamp(t / 1000, 0).expect("timestamp");
+                let outcome_type = o["outcomeType"].as_str().expect("outcome type");
+                match outcome_type {
+                    "BINARY" => {
+                        let prob = o["probability"].as_f32().unwrap_or(-1.0);
+                        let status = MarketStatus {
+                            platform: Platform::Manifold,
+                            id,
+                            prob,
+                            time,
+                            url,
+                            title,
+                        };
+                        ret.push(status);
+                    }
+                    "FREE_RESPONSE" | "MULTIPLE_CHOICE" => {
+                        let url = format!("https://manifold.markets/api/v0/market/{}", id);
+                        let response = reqwest::blocking::get(&url).unwrap().text().expect("body");
+                        if let Ok(d) = json::parse(response.as_str()) {
+                            for a in d["answers"].members() {
+                                let a_title = a["text"].to_string();
+                                let prob = a["probability"].as_f32().unwrap_or(-1.0);
+                                let status = MarketStatus {
+                                    platform: Platform::Manifold,
+                                    id: id.clone(),
+                                    prob,
+                                    time,
+                                    url: url.clone(),
+                                    title: format!("{} {}", title, a_title),
+                                };
+                                ret.push(status);
+                            }
+                        }
+                    }
+                    _ => {
+                        debug!("Unhandle outcome type {}", outcome_type);
+                        continue;
+                    }
+                }
             }
         } else {
             dbg!(response);

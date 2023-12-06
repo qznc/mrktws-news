@@ -42,7 +42,6 @@ impl Model {
             Err("no previous probability")
         };
         // now insert new probability
-        debug!("update time: {}", time);
         let query = "INSERT INTO probabilities (prob,platform,id) VALUES (?,?,?);";
         let mut stmt = self.c.prepare(query).expect("prepare prob update");
         stmt.bind((1, prob as f64)).expect("bind 1");
