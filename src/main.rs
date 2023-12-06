@@ -42,12 +42,12 @@ fn main() {
     for p in platforms {
         for s in p.some_markets() {
             let p = s.platform.to_string();
-            if s.prob > 0.0 && s.prob <= 1.0 {
-                info!("update {} {} {}", p, s.id.clone(), s.prob);
+            if s.prob >= 0.0 && s.prob <= 1.0 {
+                info!("update {} '{}' {:.1}%", p, s.title, s.prob * 100.0);
                 if let Ok(_f64) = db.update_prob(s.time, p.as_str(), s.id, s.prob, s.url, s.title) {
                 }
             } else {
-                debug!("ignore {} {} {}", p, s.id, s.prob);
+                debug!("ignore {} '{}' {}", p, s.title, s.prob);
             }
         }
     }

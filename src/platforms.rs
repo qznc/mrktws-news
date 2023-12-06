@@ -31,7 +31,7 @@ impl fmt::Display for Platform {
     }
 }
 
-pub fn get_platform(p: &String) -> Option<Box<dyn PlatformAPI>> {
+pub fn _get_platform(p: &String) -> Option<Box<dyn PlatformAPI>> {
     match p.as_str() {
         "Polymarket" => Option::Some(Box::new(Polymarket {})),
         "Metaculus" => Option::Some(Box::new(Metaculus {})),
@@ -43,7 +43,6 @@ pub fn get_platform(p: &String) -> Option<Box<dyn PlatformAPI>> {
 pub trait PlatformAPI {
     fn id(&self) -> Platform;
     fn some_markets(&self) -> Vec<MarketStatus>;
-    fn update_market(&self, id: &String) -> Option<MarketStatus>;
 }
 
 #[derive(Debug)]
@@ -94,32 +93,6 @@ impl PlatformAPI for Manifold {
         };
         ret
     }
-    fn update_market(&self, id: &String) -> Option<MarketStatus> {
-        let url = format!("https://manifold.markets/api/v0/market/{}", id);
-        debug!("fetch {}", url);
-        let response = reqwest::blocking::get(url).unwrap().text().expect("body");
-        match json::parse(response.as_str()) {
-            Ok(j) => {
-                let prob = j["probability"].as_f32().unwrap();
-                let t = j["lastBetTime"].as_f64().expect("timestamp") as i64;
-                let time = DateTime::from_timestamp(t / 1000, 0).expect("timestamp");
-                let url = j["url"].to_string();
-                let title = j["question"].to_string();
-                Option::Some(MarketStatus {
-                    platform: self.id(),
-                    id: id.clone(),
-                    prob,
-                    time,
-                    url,
-                    title,
-                })
-            }
-            Err(e) => {
-                warn!("json parse failed: {}", e);
-                Option::None
-            }
-        }
-    }
 }
 
 pub struct Metaculus {}
@@ -163,38 +136,6 @@ impl PlatformAPI for Metaculus {
         };
         ret
     }
-    fn update_market(&self, id: &String) -> Option<MarketStatus> {
-        let url = format!("https://www.metaculus.com/api2/questions/{}/", id);
-        debug!("fetch {}", url);
-        let response = reqwest::blocking::get(url).unwrap().text().expect("body");
-        match json::parse(response.as_str()) {
-            Ok(j) => {
-                let prob = j["community_prediction"]["full"]["q2"]
-                    .as_f32()
-                    .unwrap_or(-1.0);
-                let t = j["last_activity_time"]
-                    .as_str()
-                    .expect("last_activity_time");
-                let time: DateTime<Utc> = DateTime::parse_from_rfc3339(t)
-                    .expect("iso8601")
-                    .with_timezone(&Utc);
-                let url = j["url"].to_string();
-                let title = j["title"].to_string();
-                Option::Some(MarketStatus {
-                    platform: self.id(),
-                    id: id.clone(),
-                    prob,
-                    time,
-                    url,
-                    title,
-                })
-            }
-            Err(e) => {
-                warn!("json parse failed: {}", e);
-                Option::None
-            }
-        }
-    }
 }
 
 pub struct Polymarket {}
@@ -223,7 +164,6 @@ impl PlatformAPI for Polymarket {
             .expect("text body");
         if let Ok(j) = json::parse(response.as_str()) {
             for o in j["data"]["markets"].members() {
-                let _question = o["question"].clone();
                 let _traders = o["liquidity"].clone();
                 let prices = json::parse(o["outcomePrices"].as_str().unwrap()).expect("valid json");
                 let prob = prices[0].to_string().parse::<f32>().expect("parsed float");
@@ -232,9 +172,13 @@ impl PlatformAPI for Polymarket {
                 let time: DateTime<Utc> = DateTime::parse_from_rfc3339(t)
                     .expect("iso8601")
                     .with_timezone(&Utc);
-                debug!("updatedAt {}", time);
-                let url = o["url"].to_string();
-                let title = o["title"].to_string();
+                let url = "https://polymarket.com/event/https://polymarket.com/event/".to_string()
+                    + id.as_str();
+                if o["question"].is_null() {
+                    debug!("Polymarket 'null question' drop: {:?}", j);
+                    continue;
+                }
+                let title = o["question"].to_string();
                 let status = MarketStatus {
                     platform: Platform::Polymarket,
                     id,
@@ -249,52 +193,5 @@ impl PlatformAPI for Polymarket {
             dbg!(response);
         };
         ret
-    }
-    fn update_market(&self, id: &String) -> Option<MarketStatus> {
-        let query = r#"{ markets(limit: 1, where: "slug = 'XXX'")
-                       { question, outcomePrices, slug, volume24hr, liquidity, updatedAt} }"#;
-        let json_query = format!(
-            r#"{{"query": "{}"}}"#,
-            query
-                .replace(r#"""#, r#"\""#)
-                .replace("XXX", id)
-                .replace("\n", "")
-        );
-        let graphql_endpoint = "https://gamma-api.polymarket.com/query";
-        let client = reqwest::blocking::Client::new();
-        let response = client
-            .post(graphql_endpoint)
-            .header(reqwest::header::CONTENT_TYPE, "application/json")
-            .body(json_query)
-            .send()
-            .expect("response")
-            .text()
-            .expect("text body");
-        match json::parse(response.as_str()) {
-            Ok(j) => {
-                let prices =
-                    json::parse(j["data"]["markets"][0]["outcomePrices"].as_str().unwrap())
-                        .expect("valid json");
-                let prob = prices[0].to_string().parse::<f32>().expect("parsed float");
-                let t = j["updatedAt"].as_str().expect("updatedAt");
-                let time: DateTime<Utc> = DateTime::parse_from_rfc3339(t)
-                    .expect("iso8601")
-                    .with_timezone(&Utc);
-                let url = j["url"].to_string();
-                let title = j["title"].to_string();
-                Option::Some(MarketStatus {
-                    platform: self.id(),
-                    id: id.clone(),
-                    prob,
-                    time,
-                    url,
-                    title,
-                })
-            }
-            Err(e) => {
-                warn!("json parse failed: {}", e);
-                Option::None
-            }
-        }
     }
 }

@@ -10,6 +10,7 @@ However, multi-choice might also be a "market group" if parts resolve separately
 
 ## Next Steps
 
+* Feature: Handle non-binary markets
 * Feature: Update multiple time stamps at once
 * Feature: Store details to have title available
 * Feature: Fediverse posting
