@@ -10,5 +10,4 @@ However, multi-choice might also be a "market group" if parts resolve separately
 
 ## Next Steps
 
-* Feature: Update multiple time stamps at once
 * Feature: Fediverse posting

@@ -20,6 +20,12 @@ fn arguments() -> Command {
                 .action(ArgAction::SetTrue)
                 .help("fetch random market info"),
         )
+        .arg(
+            Arg::new("publish")
+                .long("no-publish")
+                .action(ArgAction::SetFalse)
+                .help("do not publish noteworthy change"),
+        )
 }
 
 fn main() {
@@ -52,9 +58,11 @@ fn main() {
         }
     }
 
-    if let Some(q) = db.most_noteworthy_change() {
-        info!("change! {:?}", q);
-        println!("Most noteworth change: {}", as_change_str(&q));
-        // TODO report news
+    if args.get_flag("publish") {
+        if let Some(q) = db.most_noteworthy_change() {
+            println!("Most noteworth change: {}", as_change_str(&q));
+            // TODO publish news
+            db.log_publication(q);
+        }
     }
 }

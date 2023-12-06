@@ -97,11 +97,13 @@ impl PlatformAPI for Manifold {
                         let response = reqwest::blocking::get(&url).unwrap().text().expect("body");
                         if let Ok(d) = json::parse(response.as_str()) {
                             for a in d["answers"].members() {
+                                //debug!("answer: {:#?}", a);
                                 let a_title = a["text"].to_string();
+                                let a_id = a["index"].as_f32().expect("index") as i32;
                                 let prob = a["probability"].as_f32().unwrap_or(-1.0);
                                 let status = MarketStatus {
                                     platform: Platform::Manifold,
-                                    id: id.clone(),
+                                    id: format!("{} {}", id, a_id),
                                     prob,
                                     time,
                                     url: url.clone(),
@@ -137,7 +139,9 @@ impl PlatformAPI for Metaculus {
         if let Ok(j) = json::parse(response.as_str()) {
             for o in j["results"].members() {
                 let _question = o["title"].clone();
-                let _traders = o["number_of_forecasters"].clone();
+                if 30 > o["number_of_forecasters"].as_i32().expect("num casters") {
+                    continue; // not enough forecasters
+                };
                 let prob = o["community_prediction"]["full"]["q2"]
                     .as_f32()
                     .unwrap_or(-1.0);
@@ -148,7 +152,7 @@ impl PlatformAPI for Metaculus {
                 let time: DateTime<Utc> = DateTime::parse_from_rfc3339(t)
                     .expect("iso8601")
                     .with_timezone(&Utc);
-                let url = o["url"].to_string();
+                let url = o["url"].to_string().replace("api2/", "");
                 let title = o["title"].to_string();
                 let status = MarketStatus {
                     platform: self.id(),

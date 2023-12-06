@@ -42,11 +42,13 @@ impl Model {
             Err("no previous probability")
         };
         // now insert new probability
-        let query = "INSERT INTO probabilities (prob,platform,id) VALUES (?,?,?);";
+        let query = "INSERT INTO probabilities (prob,platform,id,time) VALUES (?,?,?,?);";
         let mut stmt = self.c.prepare(query).expect("prepare prob update");
-        stmt.bind((1, prob as f64)).expect("bind 1");
-        stmt.bind((2, platform)).expect("bind 2");
-        stmt.bind((3, id.as_str())).expect("bind 3");
+        stmt.bind((1, prob as f64)).expect("bind prob");
+        stmt.bind((2, platform)).expect("bind platform");
+        stmt.bind((3, id.as_str())).expect("bind id");
+        let t: String = time.format("%Y-%m-%h %H:%M:%S").to_string();
+        stmt.bind((4, t.as_str())).expect("bind time");
         stmt.next().expect("bind");
         // save details
         let query = "INSERT OR REPLACE INTO details (platform,id,title,url) VALUES(?,?,?,?);";
@@ -61,35 +63,32 @@ impl Model {
 
     pub fn most_noteworthy_change(&self) -> Option<Change> {
         let mut most_noteworthy = Change::new(Duration::Week, 0.5);
+        let previous = last_publications(&self.c);
         let timestamps = query_timestamps(&self.c);
         info!("found {} candidates for news", timestamps.len());
         for ts in timestamps {
             let plat = &ts.platform;
             let p_now = get_prob_by_time(&self.c, plat, &ts.id, &ts.latest).expect("latest prob");
             let c_hour = timestamp_to_change(&self.c, &ts, p_now, ts.hour.clone(), Duration::Hour);
-            if let Some(c) = c_hour {
-                if c > most_noteworthy {
-                    most_noteworthy = c;
-                }
-            }
+            set_if_not_published(&mut most_noteworthy, c_hour, &previous);
             let c_day = timestamp_to_change(&self.c, &ts, p_now, ts.day.clone(), Duration::Day);
-            if let Some(c) = c_day {
-                if c > most_noteworthy {
-                    most_noteworthy = c;
-                }
-            }
+            set_if_not_published(&mut most_noteworthy, c_day, &previous);
             let c_week = timestamp_to_change(&self.c, &ts, p_now, ts.week.clone(), Duration::Week);
-            if let Some(c) = c_week {
-                if c > most_noteworthy {
-                    most_noteworthy = c;
-                }
-            }
+            set_if_not_published(&mut most_noteworthy, c_week, &previous);
         }
         if most_noteworthy.url == "url" {
             Option::None
         } else {
             Option::Some(most_noteworthy)
         }
+    }
+    pub fn log_publication(&self, c: Change) {
+        let q = "INSERT INTO log (type, content) VALUES ('pub', ?);";
+        let mut s = self.c.prepare(q).expect("prep check");
+        s.bind((1, format!("{} {}", c.platform, c.id).as_str()))
+            .expect("bind");
+        s.next().expect("execute");
+        info!("log pub {} {}", c.platform, c.id);
     }
 }
 
@@ -100,7 +99,7 @@ pub enum Duration {
     Week,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct Change {
     platform: String,
     id: String,
@@ -159,9 +158,12 @@ mod tests {
 }
 
 pub fn as_change_str(c: &Change) -> String {
+    let diff = 100.0 * (c.p_after - c.p_before);
+    let emoji = if diff >= 0.0 { "📈" } else { "📉" };
     format!(
-        "{:.1}% in {}: {}\n{}",
-        100.0 * (c.p_after - c.p_before),
+        "{} {:+.0}% in {}: {}\n{}",
+        emoji,
+        diff,
         match c.duration {
             Duration::Hour => "an hour",
             Duration::Day => "a day",
@@ -195,6 +197,7 @@ fn timestamp_to_change(
     })
 }
 
+#[derive(Debug)]
 struct Timestamps {
     platform: String,
     id: String,
@@ -240,12 +243,11 @@ fn query_timestamps(c: &Connection) -> Vec<Timestamps> {
     let query = format!(
         " SELECT platform, id,
 MAX(time) AS latest_time,
-MAX(CASE WHEN time >= DATETIME(CURRENT_TIMESTAMP, '-45 minutes') AND time <= DATETIME(CURRENT_TIMESTAMP, '-69 minutes')THEN time END) AS time_1_hour_ago,
-MAX(CASE WHEN time >= DATETIME(CURRENT_TIMESTAMP, '-22 hours') AND time <= DATETIME(CURRENT_TIMESTAMP, '-28 hours') THEN time END) AS time_1_day_ago,
-MAX(CASE WHEN time >= DATETIME(CURRENT_TIMESTAMP, '-6 day') AND time <= DATETIME(CURRENT_TIMESTAMP, '-8 days') THEN time END) AS time_1_week_ago
+MAX(CASE WHEN time <= DATETIME(CURRENT_TIMESTAMP, '-45 minutes') AND time >= DATETIME(CURRENT_TIMESTAMP, '-69 minutes')THEN time END) AS time_1_hour_ago,
+MAX(CASE WHEN time <= DATETIME(CURRENT_TIMESTAMP, '-22 hours') AND time >= DATETIME(CURRENT_TIMESTAMP, '-28 hours') THEN time END) AS time_1_day_ago,
+MAX(CASE WHEN time <= DATETIME(CURRENT_TIMESTAMP, '-6 day') AND time >= DATETIME(CURRENT_TIMESTAMP, '-8 days') THEN time END) AS time_1_week_ago
 FROM probabilities
-GROUP BY platform, id
-HAVING latest_time <> time_1_hour_ago; "
+GROUP BY platform, id;"
     );
     let mut s = c.prepare(query).expect("query bound");
     while let Ok(sqlite::State::Row) = s.next() {
@@ -262,6 +264,33 @@ HAVING latest_time <> time_1_hour_ago; "
     ret
 }
 
+fn last_publications(c: &Connection) -> Vec<String> {
+    let query = "SELECT content FROM log WHERE type = 'pub' ORDER BY time DESC LIMIT 30;";
+    let mut s = c.prepare(query).expect("query bound");
+    let mut ret: Vec<String> = vec![];
+    while let Ok(sqlite::State::Row) = s.next() {
+        ret.push(s.read::<String, _>("content").expect("content"));
+    }
+    ret
+}
+
+fn set_if_not_published(a: &mut Change, b: Option<Change>, previous: &Vec<String>) {
+    if b.is_none() {
+        return; // is none
+    }
+    let next = b.expect("is some");
+    if a > &mut next.clone() {
+        return; // a is better already
+    }
+    let next_id = format!("{} {}", next.platform, next.id);
+    for p in previous {
+        if p == &next_id {
+            return; // already published
+        }
+    }
+    a.clone_from(&next);
+}
+
 fn init_tables(c: &Connection) {
     let check_first_q = "SELECT name FROM sqlite_master WHERE type='table' AND name='log';";
     let mut s = c.prepare(check_first_q).expect("prep check");
@@ -272,7 +301,6 @@ fn init_tables(c: &Connection) {
     CREATE TABLE log (time DATETIME DEFAULT CURRENT_TIMESTAMP, type TEXT, content TEXT);
     INSERT INTO log (type, content) VALUES (\"creation\", \"hello world\");
     CREATE TABLE probabilities(time DATETIME DEFAULT CURRENT_TIMESTAMP, platform TEXT, id TEXT, prob REAL);
-    CREATE TABLE details (platform TEXT, id TEXT, title TEXT, url TEXT);
-";
+    CREATE TABLE details (platform TEXT, id TEXT, title TEXT, url TEXT);";
     c.execute(query).expect("sql init");
 }
