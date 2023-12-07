@@ -77,7 +77,9 @@ impl Model {
             set_if_not_published(&mut most_noteworthy, c_week, &previous);
         }
         if most_noteworthy.url == "url" {
-            Option::None
+            Option::None // found none
+        } else if (most_noteworthy.p_before - most_noteworthy.p_after).abs() < 0.05 {
+            Option::None // nothing noteworthy
         } else {
             Option::Some(most_noteworthy)
         }
@@ -89,6 +91,17 @@ impl Model {
             .expect("bind");
         s.next().expect("execute");
         info!("log pub {} {}", c.platform, c.id);
+    }
+    pub fn duration_since_last_publication(&self) -> chrono::Duration {
+        let query = "SELECT time FROM log ORDER BY time DESC LIMIT 1;";
+        let mut s = self.c.prepare(query).expect("prepare");
+        if let Ok(sqlite::State::Row) = s.next() {
+            let t = s.read::<String, _>("time").expect("time");
+            let naive = NaiveDateTime::parse_from_str(t.as_str(), "%Y-%m-%d %H:%M:%S");
+            Utc::now() - naive.expect("parsed").and_utc()
+        } else {
+            chrono::Duration::zero()
+        }
     }
 }
 

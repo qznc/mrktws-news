@@ -61,8 +61,20 @@ fn main() {
     if args.get_flag("publish") {
         if let Some(q) = db.most_noteworthy_change() {
             println!("Most noteworth change: {}", as_change_str(&q));
-            // TODO publish news
-            db.log_publication(q);
+            let since = db.duration_since_last_publication();
+            if since.num_hours() > 6 {
+                // TODO publish news
+                db.log_publication(q);
+            } else {
+                info!(
+                    "Skip publication cause last one was only {} minutes ago.",
+                    since.num_minutes()
+                )
+            }
+        } else {
+            info!("no noteworthy change");
         }
+    } else {
+        info!("skip publication");
     }
 }
