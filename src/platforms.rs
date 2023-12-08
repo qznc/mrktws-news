@@ -62,12 +62,13 @@ impl PlatformAPI for Manifold {
         Platform::Manifold
     }
     fn some_markets(&self) -> Vec<MarketStatus> {
-        let url = "https://manifold.markets/api/v0/search-markets?limit=50&sort=last-updated&term=";
+        let url =
+            "https://manifold.markets/api/v0/search-markets?limit=200&sort=last-updated&term=";
         let response = reqwest::blocking::get(url).unwrap().text().expect("body");
         let mut ret = vec![];
         if let Ok(j) = json::parse(response.as_str()) {
             for o in j.members() {
-                if 20 > o["uniqueBettorCount"].as_i32().expect("bettor count") {
+                if 15 > o["uniqueBettorCount"].as_i32().expect("bettor count") {
                     continue; // not enough bettors
                 }
                 if 200.0 > o["volume"].as_f32().expect("volume") {
@@ -92,14 +93,20 @@ impl PlatformAPI for Manifold {
                         };
                         ret.push(status);
                     }
-                    "FREE_RESPONSE" | "MULTIPLE_CHOICE" => {
+                    "MULTIPLE_CHOICE" | "FREE_RESPONSE" => {
                         let url = format!("https://manifold.markets/api/v0/market/{}", id);
                         let response = reqwest::blocking::get(&url).unwrap().text().expect("body");
                         if let Ok(d) = json::parse(response.as_str()) {
                             for a in d["answers"].members() {
-                                //debug!("answer: {:#?}", a);
                                 let a_title = a["text"].to_string();
-                                let a_id = a["index"].as_f32().expect("index") as i32;
+                                let a_id = if a.has_key("index") {
+                                    a["index"].as_f32().expect("index") as i32
+                                } else if a.has_key("number") {
+                                    a["number"].as_f32().expect("number") as i32
+                                } else {
+                                    error!("answer without index nor number: {:#?}", a);
+                                    -1
+                                };
                                 let prob = a["probability"].as_f32().unwrap_or(-1.0);
                                 let status = MarketStatus {
                                     platform: Platform::Manifold,
@@ -114,7 +121,7 @@ impl PlatformAPI for Manifold {
                         }
                     }
                     _ => {
-                        debug!("Unhandle outcome type {}", outcome_type);
+                        debug!("Unhandled outcome type {}", outcome_type);
                         continue;
                     }
                 }
@@ -133,7 +140,7 @@ impl PlatformAPI for Metaculus {
         Platform::Metaculus
     }
     fn some_markets(&self) -> Vec<MarketStatus> {
-        let url = "https://www.metaculus.com/api2/questions/?forecast_type=binary&type=forecast&limit=10&order_by=-activity&status=open";
+        let url = "https://www.metaculus.com/api2/questions/?forecast_type=binary&type=forecast&limit=100&order_by=-activity&status=open";
         let response = reqwest::blocking::get(url).unwrap().text().expect("body");
         let mut ret = vec![];
         if let Ok(j) = json::parse(response.as_str()) {

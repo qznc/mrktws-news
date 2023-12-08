@@ -76,10 +76,16 @@ impl Model {
             let c_week = timestamp_to_change(&self.c, &ts, p_now, ts.week.clone(), Duration::Week);
             set_if_not_published(&mut most_noteworthy, c_week, &previous);
         }
+        debug!(
+            "note before {} and after {}",
+            most_noteworthy.p_before, most_noteworthy.p_after
+        );
         if most_noteworthy.url == "url" {
-            Option::None // found none
-        } else if (most_noteworthy.p_before - most_noteworthy.p_after).abs() < 0.05 {
-            Option::None // nothing noteworthy
+            debug!("found nothing to even consider noteworthyness");
+            Option::None
+        } else if (most_noteworthy.p_after - most_noteworthy.p_before).abs() < 0.02 {
+            debug!("not even one +2% move");
+            Option::None
         } else {
             Option::Some(most_noteworthy)
         }
@@ -255,7 +261,7 @@ fn query_timestamps(c: &Connection) -> Vec<Timestamps> {
     let mut ret = vec![];
     let query = format!(
         " SELECT platform, id,
-MAX(time) AS latest_time,
+MAX(CASE WHEN time >= DATETIME(CURRENT_TIMESTAMP, '-9 minutes') THEN time END) AS latest_time,
 MAX(CASE WHEN time <= DATETIME(CURRENT_TIMESTAMP, '-45 minutes') AND time >= DATETIME(CURRENT_TIMESTAMP, '-69 minutes')THEN time END) AS time_1_hour_ago,
 MAX(CASE WHEN time <= DATETIME(CURRENT_TIMESTAMP, '-22 hours') AND time >= DATETIME(CURRENT_TIMESTAMP, '-28 hours') THEN time END) AS time_1_day_ago,
 MAX(CASE WHEN time <= DATETIME(CURRENT_TIMESTAMP, '-6 day') AND time >= DATETIME(CURRENT_TIMESTAMP, '-8 days') THEN time END) AS time_1_week_ago
@@ -264,13 +270,25 @@ GROUP BY platform, id;"
     );
     let mut s = c.prepare(query).expect("query bound");
     while let Ok(sqlite::State::Row) = s.next() {
+        let latest = match s.read::<String, _>("latest_time") {
+            Result::Ok(x) => x,
+            Result::Err(_) => {
+                continue; // no latest value
+            }
+        };
+        let hour = s.read::<String, _>("time_1_hour_ago").ok();
+        let day = s.read::<String, _>("time_1_day_ago").ok();
+        let week = s.read::<String, _>("time_1_week_ago").ok();
+        if hour.is_none() && day.is_none() && week.is_none() {
+            continue; // no previous data about this market
+        }
         let timestamps = Timestamps {
             platform: s.read::<String, _>("platform").expect("field"),
             id: s.read::<String, _>("id").expect("id field"),
-            latest: s.read::<String, _>("latest_time").expect("field"),
-            hour: s.read::<String, _>("time_1_hour_ago").ok(),
-            day: s.read::<String, _>("time_1_day_ago").ok(),
-            week: s.read::<String, _>("time_1_week_ago").ok(),
+            latest,
+            hour,
+            day,
+            week,
         };
         ret.push(timestamps);
     }
@@ -301,6 +319,7 @@ fn set_if_not_published(a: &mut Change, b: Option<Change>, previous: &Vec<String
             return; // already published
         }
     }
+    debug!("do set {}-{}", next.p_before, next.p_after);
     a.clone_from(&next);
 }
 
