@@ -31,15 +31,6 @@ impl fmt::Display for Platform {
     }
 }
 
-pub fn _get_platform(p: &String) -> Option<Box<dyn PlatformAPI>> {
-    match p.as_str() {
-        "Polymarket" => Option::Some(Box::new(Polymarket {})),
-        "Metaculus" => Option::Some(Box::new(Metaculus {})),
-        "Manifold" => Option::Some(Box::new(Manifold {})),
-        _ => Option::None,
-    }
-}
-
 pub trait PlatformAPI {
     fn id(&self) -> Platform;
     fn some_markets(&self) -> Vec<MarketStatus>;
@@ -55,15 +46,25 @@ pub struct MarketStatus {
     pub title: String,
 }
 
-pub struct Manifold {}
+pub struct Manifold {
+    fetch_limit: i32,
+}
+
+impl Manifold {
+    pub fn new_boxed(fetch_limit: i32) -> Box<dyn PlatformAPI> {
+        Box::new(Manifold { fetch_limit })
+    }
+}
 
 impl PlatformAPI for Manifold {
     fn id(self: &Self) -> Platform {
         Platform::Manifold
     }
     fn some_markets(&self) -> Vec<MarketStatus> {
-        let url =
-            "https://manifold.markets/api/v0/search-markets?limit=200&sort=last-updated&term=";
+        let url = format!(
+            "https://manifold.markets/api/v0/search-markets?limit={}&sort=last-updated&term=",
+            self.fetch_limit
+        );
         let response = reqwest::blocking::get(url).unwrap().text().expect("body");
         let mut ret = vec![];
         if let Ok(j) = json::parse(response.as_str()) {
@@ -133,14 +134,22 @@ impl PlatformAPI for Manifold {
     }
 }
 
-pub struct Metaculus {}
+pub struct Metaculus {
+    fetch_limit: i32,
+}
+
+impl Metaculus {
+    pub fn new_boxed(fetch_limit: i32) -> Box<dyn PlatformAPI> {
+        Box::new(Metaculus { fetch_limit })
+    }
+}
 
 impl PlatformAPI for Metaculus {
     fn id(self: &Self) -> Platform {
         Platform::Metaculus
     }
     fn some_markets(&self) -> Vec<MarketStatus> {
-        let url = "https://www.metaculus.com/api2/questions/?forecast_type=binary&type=forecast&limit=100&order_by=-activity&status=open";
+        let url = format!("https://www.metaculus.com/api2/questions/?forecast_type=binary&type=forecast&limit={}&order_by=-activity&status=open", self.fetch_limit);
         let response = reqwest::blocking::get(url).unwrap().text().expect("body");
         let mut ret = vec![];
         if let Ok(j) = json::parse(response.as_str()) {
@@ -178,7 +187,15 @@ impl PlatformAPI for Metaculus {
     }
 }
 
-pub struct Polymarket {}
+pub struct Polymarket {
+    fetch_limit: i32,
+}
+
+impl Polymarket {
+    pub fn new_boxed(fetch_limit: i32) -> Box<dyn PlatformAPI> {
+        Box::new(Polymarket { fetch_limit })
+    }
+}
 
 impl PlatformAPI for Polymarket {
     fn id(self: &Self) -> Platform {
@@ -186,8 +203,11 @@ impl PlatformAPI for Polymarket {
     }
     fn some_markets(&self) -> Vec<MarketStatus> {
         let mut ret = vec![];
-        let query = r#"{ markets(limit: 10, order: "liquidity DESC")
-                       { question, outcomePrices, slug, volume24hr, liquidity, updatedAt} }"#;
+        let query = format!(
+            r#"{{ markets(limit: {}, order: "liquidity DESC")
+                       {{ question, outcomePrices, slug, volume24hr, liquidity, updatedAt}} }}"#,
+            self.fetch_limit
+        );
         let json_query = format!(
             r#"{{"query": "{}"}}"#,
             query.replace(r#"""#, r#"\""#).replace("\n", "")

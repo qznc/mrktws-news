@@ -4,7 +4,7 @@ mod platforms;
 use crate::mastodon::Mastodon;
 use crate::model::*;
 use crate::platforms::*;
-use clap::{Arg, ArgAction, ArgMatches, Command};
+use clap::{Arg, ArgAction, Command};
 use ini::Ini;
 use log::*;
 
@@ -42,20 +42,22 @@ fn main() {
     env_logger::init();
 
     let args = arguments().get_matches();
+    let ini_path = args.get_one::<String>("ini").expect("ini");
+    let config = Ini::load_from_file(ini_path.as_str()).ok();
+
     let db = Model::new(args.get_one::<String>("database").unwrap());
     let platforms: Vec<Box<dyn PlatformAPI>> = match args.get_flag("get_some") {
         true => {
             vec![
-                Box::new(Manifold {}),
-                Box::new(Metaculus {}),
-                Box::new(Polymarket {}),
+                Manifold::new_boxed(get_fetch_limit(&config, "manifold", 100)),
+                Metaculus::new_boxed(get_fetch_limit(&config, "metaculus", 100)),
+                Polymarket::new_boxed(get_fetch_limit(&config, "polymarket", 100)),
             ]
         }
         false => {
             vec![]
         }
     };
-
     for p in platforms {
         for s in p.some_markets() {
             let p = s.platform.to_string();
@@ -69,7 +71,7 @@ fn main() {
         }
     }
 
-    let tooter = get_tooter(&args);
+    let tooter = get_tooter(config);
     if args.get_flag("publish") {
         if let Some(q) = db.most_noteworthy_change() {
             let msg = as_change_str(&q);
@@ -92,10 +94,23 @@ fn main() {
     }
 }
 
-fn get_tooter(args: &ArgMatches) -> Option<Mastodon> {
-    let ini_path = args.get_one::<String>("ini")?;
-    let config = Ini::load_from_file(ini_path.as_str()).ok()?;
-    let m_section = config.section(Some("mastodon"))?;
+fn get_fetch_limit(config: &Option<Ini>, name: &str, default: i32) -> i32 {
+    if config.is_none() {
+        return default;
+    }
+    let c = config.as_ref().unwrap();
+    let section = c.section(Some("fetch-limits"));
+    if section.is_none() {
+        return default;
+    }
+    let s = section.unwrap();
+    let limit = s[name].parse::<i32>();
+    limit.unwrap_or(default)
+}
+
+fn get_tooter(config: Option<Ini>) -> Option<Mastodon> {
+    let c = config?;
+    let m_section = c.section(Some("mastodon"))?;
     let endpoint = m_section.get("api-endpoint")?;
     let access_token = m_section.get("access-token")?;
     let m_client = Mastodon::new(endpoint.to_string(), access_token.to_string());
