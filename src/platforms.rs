@@ -65,7 +65,11 @@ impl PlatformAPI for Manifold {
             "https://manifold.markets/api/v0/search-markets?limit={}&sort=last-updated&term=",
             self.fetch_limit
         );
-        let response = reqwest::blocking::get(url).unwrap().text().expect("body");
+        let response = ureq::get(url.as_str())
+            .call()
+            .unwrap()
+            .into_string()
+            .expect("body");
         let mut ret = vec![];
         if let Ok(j) = json::parse(response.as_str()) {
             for o in j.members() {
@@ -96,7 +100,7 @@ impl PlatformAPI for Manifold {
                     }
                     "MULTIPLE_CHOICE" | "FREE_RESPONSE" => {
                         let url = format!("https://manifold.markets/api/v0/market/{}", id);
-                        let response = reqwest::blocking::get(&url).unwrap().text().expect("body");
+                        let response = ureq::get(&url).call().unwrap().into_string().expect("body");
                         if let Ok(d) = json::parse(response.as_str()) {
                             for a in d["answers"].members() {
                                 let a_title = a["text"].to_string();
@@ -150,7 +154,11 @@ impl PlatformAPI for Metaculus {
     }
     fn some_markets(&self) -> Vec<MarketStatus> {
         let url = format!("https://www.metaculus.com/api2/questions/?forecast_type=binary&type=forecast&limit={}&order_by=-activity&status=open", self.fetch_limit);
-        let response = reqwest::blocking::get(url).unwrap().text().expect("body");
+        let response = ureq::get(url.as_str())
+            .call()
+            .unwrap()
+            .into_string()
+            .expect("body");
         let mut ret = vec![];
         if let Ok(j) = json::parse(response.as_str()) {
             for o in j["results"].members() {
@@ -213,14 +221,11 @@ impl PlatformAPI for Polymarket {
             query.replace(r#"""#, r#"\""#).replace("\n", "")
         );
         let graphql_endpoint = "https://gamma-api.polymarket.com/query";
-        let client = reqwest::blocking::Client::new();
-        let response = client
-            .post(graphql_endpoint)
-            .header(reqwest::header::CONTENT_TYPE, "application/json")
-            .body(json_query)
-            .send()
+        let response = ureq::post(graphql_endpoint)
+            .set("Content-Type", "application/json")
+            .send_string(json_query.as_str())
             .expect("response")
-            .text()
+            .into_string()
             .expect("text body");
         if let Ok(j) = json::parse(response.as_str()) {
             for o in j["data"]["markets"].members() {
