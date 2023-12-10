@@ -1,4 +1,4 @@
-# Marketwise News
+# Mrktws News
 
 News bot which detects major shifts in prediction markets.
 
@@ -10,5 +10,4 @@ However, multi-choice might also be a "market group" if parts resolve separately
 
 ## Next Steps
 
-* Feature: Fediverse posting
 * reqwest -> ureq
