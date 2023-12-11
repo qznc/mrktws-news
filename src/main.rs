@@ -39,8 +39,8 @@ fn arguments() -> Command {
 }
 
 fn main() {
-    info!("main start");
     env_logger::init();
+    info!("main start");
 
     let args = arguments().get_matches();
     let ini_path = args.get_one::<String>("ini").expect("ini");

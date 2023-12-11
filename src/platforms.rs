@@ -80,7 +80,7 @@ impl PlatformAPI for Manifold {
                     continue; // not enough volume
                 }
                 let id = o["id"].to_string();
-                let url = o["url"].to_string();
+                let url = format!("{}?r=bWFya3R3c2U", o["url"]);
                 let title = o["question"].to_string();
                 let t = o["lastBetTime"].as_f64().expect("timestamp") as i64;
                 let time = DateTime::from_timestamp(t / 1000, 0).expect("timestamp");
