@@ -47,7 +47,7 @@ impl Model {
         stmt.bind((1, prob as f64)).expect("bind prob");
         stmt.bind((2, platform)).expect("bind platform");
         stmt.bind((3, id.as_str())).expect("bind id");
-        let t: String = time.format("%Y-%m-%h %H:%M:%S").to_string();
+        let t: String = time.format("%Y-%m-%d %H:%M:%S").to_string();
         stmt.bind((4, t.as_str())).expect("bind time");
         stmt.next().expect("bind");
         // save details
