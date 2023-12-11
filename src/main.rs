@@ -39,6 +39,7 @@ fn arguments() -> Command {
 }
 
 fn main() {
+    info!("main start");
     env_logger::init();
 
     let args = arguments().get_matches();
