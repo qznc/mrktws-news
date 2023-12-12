@@ -102,7 +102,7 @@ impl PlatformAPI for Manifold {
                         ret.push(status);
                     }
                     "MULTIPLE_CHOICE" | "FREE_RESPONSE" => {
-                        let url = format!("https://manifold.markets/api/v0/market/{}", id);
+                        let url = format!("https://api.manifold.markets/v0/market?id={}", id);
                         let call = ureq::get(url.as_str()).call();
                         let response = match call {
                             Ok(c) => c.into_string().expect("body"),

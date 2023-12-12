@@ -50,9 +50,9 @@ fn main() {
     let platforms: Vec<Box<dyn PlatformAPI>> = match args.get_flag("get_some") {
         true => {
             vec![
-                Manifold::new_boxed(get_fetch_limit(&config, "manifold", 100)),
                 Metaculus::new_boxed(get_fetch_limit(&config, "metaculus", 100)),
                 Polymarket::new_boxed(get_fetch_limit(&config, "polymarket", 100)),
+                Manifold::new_boxed(get_fetch_limit(&config, "manifold", 100)),
             ]
         }
         false => {
