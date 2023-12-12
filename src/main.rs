@@ -65,13 +65,16 @@ fn main() {
         for s in ms {
             let p = s.platform.to_string();
             if s.prob >= 0.0 && s.prob <= 1.0 {
-                //info!("update {} '{}' {:.1}%", p, s.title, s.prob * 100.0);
+                let t = s.title.clone();
                 if let Ok(_f64) = db.update_prob(s.time, p.as_str(), s.id, s.prob, s.url, s.title) {
+                } else {
+                    warn!("failed to update {} '{}' {:.1}%", p, t, s.prob * 100.0);
                 }
             } else {
                 debug!("ignore {} '{}' {}", p, s.title, s.prob);
             }
         }
+        info!("stored probabilities from {}", p.id());
     }
     info!("fetching part done");
 
