@@ -1,4 +1,5 @@
 use chrono::prelude::*;
+use json::JsonValue;
 use log::*;
 use std::fmt;
 
@@ -251,34 +252,39 @@ impl PlatformAPI for Polymarket {
         };
         if let Ok(j) = json::parse(response.as_str()) {
             for o in j["data"]["markets"].members() {
-                let _traders = o["liquidity"].clone();
-                let prices = json::parse(o["outcomePrices"].as_str().unwrap()).expect("valid json");
-                let prob = prices[0].to_string().parse::<f32>().expect("parsed float");
-                let id = o["slug"].to_string();
-                let t = o["updatedAt"].as_str().expect("updatedAt");
-                let time: DateTime<Utc> = DateTime::parse_from_rfc3339(t)
-                    .expect("iso8601")
-                    .with_timezone(&Utc);
-                let url = "https://polymarket.com/event/https://polymarket.com/event/".to_string()
-                    + id.as_str();
-                if o["question"].is_null() {
-                    debug!("Polymarket 'null question' drop: {:?}", j);
-                    continue;
+                if let Some(status) = parse_polymarket(o) {
+                    ret.push(status);
+                } else {
+                    debug!("Polymarket drop: {:?}", o);
                 }
-                let title = o["question"].to_string();
-                let status = MarketStatus {
-                    platform: Platform::Polymarket,
-                    id,
-                    prob,
-                    time,
-                    url,
-                    title,
-                };
-                ret.push(status);
             }
         } else {
             dbg!(response);
         };
         ret
     }
+}
+
+fn parse_polymarket(o: &JsonValue) -> Option<MarketStatus> {
+    let _traders = o["liquidity"].clone();
+    let prices = json::parse(o["outcomePrices"].as_str()?).ok()?;
+    let prob = prices[0].to_string().parse::<f32>().ok()?;
+    let id = o["slug"].to_string();
+    let t = o["updatedAt"].as_str()?;
+    let time: DateTime<Utc> = DateTime::parse_from_rfc3339(t).ok()?.with_timezone(&Utc);
+    let url =
+        "https://polymarket.com/event/https://polymarket.com/event/".to_string() + id.as_str();
+    if o["question"].is_null() {
+        return Option::None;
+    }
+    let title = o["question"].to_string();
+    let platform = Platform::Polymarket;
+    Some(MarketStatus {
+        platform,
+        id,
+        prob,
+        time,
+        url,
+        title,
+    })
 }
