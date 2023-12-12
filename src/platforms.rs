@@ -85,8 +85,8 @@ impl PlatformAPI for Manifold {
                 let id = o["id"].to_string();
                 let url = format!("{}?r=bWFya3R3c2U", o["url"]);
                 let title = o["question"].to_string();
-                let t = o["lastBetTime"].as_f64().expect("timestamp") as i64;
-                let time = DateTime::from_timestamp(t / 1000, 0).expect("timestamp");
+                let time = from_manifold_timestamp(o["lastBetTime"].as_f64());
+                debug!("Manifold timestamp {:?}", time);
                 let outcome_type = o["outcomeType"].as_str().expect("outcome type");
                 match outcome_type {
                     "BINARY" => {
@@ -146,6 +146,11 @@ impl PlatformAPI for Manifold {
         };
         ret
     }
+}
+
+fn from_manifold_timestamp(o: Option<f64>) -> DateTime<Utc> {
+    let t = o.expect("timestamp");
+    DateTime::from_timestamp(t as i64 / 1000, 0).expect("datetime")
 }
 
 pub struct Metaculus {

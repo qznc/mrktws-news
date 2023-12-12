@@ -40,7 +40,12 @@ impl Model {
     pub fn most_noteworthy_change(&self) -> Option<Change> {
         let mut most_noteworthy = Change::new(Duration::Week, 0.5);
         let previous = last_publications(&self.c);
-        let timestamps = query_timestamps(&self.c);
+        let ago = match duration_since_last_update(&self.c) {
+            Some(d) => d + chrono::Duration::minutes(10),
+            None => chrono::Duration::minutes(10),
+        };
+        info!("looking {} minutes ago", ago.num_minutes());
+        let timestamps = query_timestamps(&self.c, ago);
         info!("found {} candidates for news", timestamps.len());
         for ts in timestamps {
             let plat = &ts.platform;
@@ -84,6 +89,18 @@ impl Model {
         } else {
             chrono::Duration::zero()
         }
+    }
+}
+
+fn duration_since_last_update(c: &Connection) -> Option<chrono::Duration> {
+    let query = "SELECT time FROM probabilities ORDER BY time DESC LIMIT 1;";
+    let mut s = c.prepare(query).ok()?;
+    if let Ok(sqlite::State::Row) = s.next() {
+        let t = s.read::<String, _>("time").ok()?;
+        let naive = NaiveDateTime::parse_from_str(t.as_str(), "%Y-%m-%d %H:%M:%S");
+        Some(Utc::now() - naive.expect("parsed").and_utc())
+    } else {
+        Option::None
     }
 }
 
@@ -275,16 +292,18 @@ fn get_details(c: &Connection, platform: &str, id: &str) -> (String, String) {
     }
 }
 
-fn query_timestamps(c: &Connection) -> Vec<Timestamps> {
+fn query_timestamps(c: &Connection, minutes_ago: chrono::Duration) -> Vec<Timestamps> {
     let mut ret = vec![];
+    let min = minutes_ago.num_minutes();
     let query = format!(
-        " SELECT platform, id,
-MAX(CASE WHEN time >= DATETIME(CURRENT_TIMESTAMP, '-9 minutes') THEN time END) AS latest_time,
-MAX(CASE WHEN time <= DATETIME(CURRENT_TIMESTAMP, '-45 minutes') AND time >= DATETIME(CURRENT_TIMESTAMP, '-69 minutes')THEN time END) AS time_1_hour_ago,
+        "SELECT platform, id,
+MAX(CASE WHEN time >= DATETIME(CURRENT_TIMESTAMP, '-{} minutes') THEN time END) AS latest_time,
+MAX(CASE WHEN time <= DATETIME(CURRENT_TIMESTAMP, '-{} minutes') AND time >= DATETIME(CURRENT_TIMESTAMP, '-{} minutes')THEN time END) AS time_1_hour_ago,
 MAX(CASE WHEN time <= DATETIME(CURRENT_TIMESTAMP, '-22 hours') AND time >= DATETIME(CURRENT_TIMESTAMP, '-28 hours') THEN time END) AS time_1_day_ago,
 MAX(CASE WHEN time <= DATETIME(CURRENT_TIMESTAMP, '-6 day') AND time >= DATETIME(CURRENT_TIMESTAMP, '-8 days') THEN time END) AS time_1_week_ago
 FROM probabilities
-GROUP BY platform, id;"
+GROUP BY platform, id;",
+         min, min+55, min+79
     );
     let mut s = c.prepare(query).expect("query bound");
     while let Ok(sqlite::State::Row) = s.next() {
