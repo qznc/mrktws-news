@@ -24,7 +24,7 @@ impl Mastodon {
             )
             .send_form(&[
                 ("status", text.as_str()),
-                ("visibility", "unlisted"),
+                ("visibility", "public"),
                 ("language", "en"),
             ]);
         match call {
