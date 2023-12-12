@@ -41,23 +41,13 @@ impl Model {
         } else {
             Option::None
         };
-        // now insert new probability
-        let query = "INSERT INTO probabilities (prob,platform,id,time) VALUES (?,?,?,?);";
-        let mut stmt = self.c.prepare(query).expect("prepare prob update");
-        stmt.bind((1, prob as f64)).expect("bind prob");
-        stmt.bind((2, platform)).expect("bind platform");
-        stmt.bind((3, id.as_str())).expect("bind id");
-        let t: String = time.format("%Y-%m-%d %H:%M:%S").to_string();
-        stmt.bind((4, t.as_str())).expect("bind time");
-        stmt.next().expect("bind");
-        // save details
-        let query = "INSERT OR REPLACE INTO details (platform,id,title,url) VALUES(?,?,?,?);";
-        let mut stmt = self.c.prepare(query).expect("prepare detail update");
-        stmt.bind((1, platform)).expect("bind 1");
-        stmt.bind((2, id.as_str())).expect("bind 2");
-        stmt.bind((3, title.as_str())).expect("bind 3");
-        stmt.bind((4, url.as_str())).expect("bind 4");
-        stmt.next().expect("bind");
+        match insert_probability(&self.c, prob, platform, &id, &title, &url, &time) {
+            Ok(_) => {}
+            Err(e) => {
+                warn!("failed to insert prob: {}", e)
+                // we still continue...
+            }
+        };
         prev_prob
     }
 
@@ -174,6 +164,35 @@ mod tests {
         let b = Change::new(Duration::Week, 0.1);
         assert!(a < b);
     }
+}
+
+fn insert_probability(
+    c: &Connection,
+    prob: f32,
+    platform: &str,
+    id: &str,
+    title: &str,
+    url: &str,
+    time: &DateTime<Utc>,
+) -> Result<String, sqlite::Error> {
+    // now insert new probability
+    let query = "INSERT INTO probabilities (prob,platform,id,time) VALUES (?,?,?,?);";
+    let mut stmt = c.prepare(query)?;
+    stmt.bind((1, prob as f64))?;
+    stmt.bind((2, platform))?;
+    stmt.bind((3, id))?;
+    let t: String = time.format("%Y-%m-%d %H:%M:%S").to_string();
+    stmt.bind((4, t.as_str()))?;
+    stmt.next()?;
+    // save details
+    let query = "INSERT INTO details (platform,id,title,url) VALUES(?,?,?,?);";
+    let mut stmt = c.prepare(query)?;
+    stmt.bind((1, platform))?;
+    stmt.bind((2, id))?;
+    stmt.bind((3, title))?;
+    stmt.bind((4, url))?;
+    stmt.next()?;
+    Result::Ok("good".to_string())
 }
 
 pub fn as_change_str(c: &Change) -> String {
