@@ -66,9 +66,10 @@ fn main() {
             let p = s.platform.to_string();
             if s.prob >= 0.0 && s.prob <= 1.0 {
                 let t = s.title.clone();
-                if let Ok(_f64) = db.update_prob(s.time, p.as_str(), s.id, s.prob, s.url, s.title) {
+                if let Some(_f64) = db.update_prob(s.time, p.as_str(), s.id, s.prob, s.url, s.title)
+                {
                 } else {
-                    warn!("failed to update {} '{}' {:.1}%", p, t, s.prob * 100.0);
+                    debug!("No prev prob {} '{}' {:.1}%", p, t, s.prob * 100.0);
                 }
             } else {
                 debug!("ignore {} '{}' {}", p, s.title, s.prob);

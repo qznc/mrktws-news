@@ -25,7 +25,7 @@ impl Model {
         prob: f32,
         url: String,
         title: String,
-    ) -> Result<f64, &str> {
+    ) -> Option<f32> {
         // first retrieve previous probability
         let check =
             "SELECT prob FROM probabilities WHERE platform = ? AND id = ? ORDER BY time DESC LIMIT 1;";
@@ -34,12 +34,12 @@ impl Model {
         s.bind((2, id.as_str())).expect("bind 2");
         let prev_prob = if let Ok(sqlite::State::Row) = s.next() {
             if let Ok(prob) = s.read::<f64, _>("prob") {
-                Ok(prob)
+                Some(prob as f32)
             } else {
-                Err("failed to retrieve probability")
+                Option::None
             }
         } else {
-            Err("no previous probability")
+            Option::None
         };
         // now insert new probability
         let query = "INSERT INTO probabilities (prob,platform,id,time) VALUES (?,?,?,?);";
