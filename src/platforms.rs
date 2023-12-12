@@ -225,7 +225,7 @@ impl PlatformAPI for Polymarket {
     fn some_markets(&self) -> Vec<MarketStatus> {
         let mut ret = vec![];
         let query = format!(
-            r#"{{ markets(limit: {}, order: "liquidity DESC")
+            r#"{{ markets(limit: {}, order: "updated_at DESC")
                        {{ question, outcomePrices, slug, volume24hr, liquidity, updatedAt}} }}"#,
             self.fetch_limit
         );
