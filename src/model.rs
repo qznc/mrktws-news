@@ -26,21 +26,7 @@ impl Model {
         url: String,
         title: String,
     ) -> Option<f32> {
-        // first retrieve previous probability
-        let check =
-            "SELECT prob FROM probabilities WHERE platform = ? AND id = ? ORDER BY time DESC LIMIT 1;";
-        let mut s = self.c.prepare(check).expect("check first");
-        s.bind((1, platform)).expect("bind 1");
-        s.bind((2, id.as_str())).expect("bind 2");
-        let prev_prob = if let Ok(sqlite::State::Row) = s.next() {
-            if let Ok(prob) = s.read::<f64, _>("prob") {
-                Some(prob as f32)
-            } else {
-                Option::None
-            }
-        } else {
-            Option::None
-        };
+        let prev_prob = previous_probability(&self.c, &platform, &id);
         match insert_probability(&self.c, prob, platform, &id, &title, &url, &time) {
             Ok(_) => {}
             Err(e) => {
@@ -193,6 +179,19 @@ fn insert_probability(
     stmt.bind((4, url))?;
     stmt.next()?;
     Result::Ok("good".to_string())
+}
+
+fn previous_probability(c: &Connection, platform: &str, id: &str) -> Option<f32> {
+    let check =
+        "SELECT prob FROM probabilities WHERE platform = ? AND id = ? ORDER BY time DESC LIMIT 1;";
+    let mut s = c.prepare(check).ok()?;
+    s.bind((1, platform)).ok()?;
+    s.bind((2, id)).ok()?;
+    if sqlite::State::Row == s.next().ok()? {
+        Some(s.read::<f64, _>("prob").ok()? as f32)
+    } else {
+        Option::None
+    }
 }
 
 pub fn as_change_str(c: &Change) -> String {
