@@ -60,7 +60,9 @@ fn main() {
         }
     };
     for p in platforms {
-        for s in p.some_markets() {
+        let ms = p.some_markets();
+        info!("fetched {} markets from {}", ms.len(), p.id());
+        for s in ms {
             let p = s.platform.to_string();
             if s.prob >= 0.0 && s.prob <= 1.0 {
                 //info!("update {} '{}' {:.1}%", p, s.title, s.prob * 100.0);
@@ -71,6 +73,7 @@ fn main() {
             }
         }
     }
+    info!("fetching part done");
 
     let tooter = get_tooter(config);
     if args.get_flag("publish") {

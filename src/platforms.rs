@@ -62,14 +62,17 @@ impl PlatformAPI for Manifold {
     }
     fn some_markets(&self) -> Vec<MarketStatus> {
         let url = format!(
-            "https://manifold.markets/api/v0/search-markets?limit={}&sort=last-updated&term=",
+            "https://api.manifold.markets/v0/search-markets?limit={}&sort=last-updated&term=",
             self.fetch_limit
         );
-        let response = ureq::get(url.as_str())
-            .call()
-            .unwrap()
-            .into_string()
-            .expect("body");
+        let call = ureq::get(url.as_str()).call();
+        let response = match call {
+            Ok(c) => c.into_string().expect("body"),
+            Err(e) => {
+                warn!("{:?}", e);
+                return vec![];
+            }
+        };
         let mut ret = vec![];
         if let Ok(j) = json::parse(response.as_str()) {
             for o in j.members() {
@@ -100,7 +103,14 @@ impl PlatformAPI for Manifold {
                     }
                     "MULTIPLE_CHOICE" | "FREE_RESPONSE" => {
                         let url = format!("https://manifold.markets/api/v0/market/{}", id);
-                        let response = ureq::get(&url).call().unwrap().into_string().expect("body");
+                        let call = ureq::get(url.as_str()).call();
+                        let response = match call {
+                            Ok(c) => c.into_string().expect("body"),
+                            Err(e) => {
+                                warn!("{:?}", e);
+                                continue;
+                            }
+                        };
                         if let Ok(d) = json::parse(response.as_str()) {
                             for a in d["answers"].members() {
                                 let a_title = a["text"].to_string();
@@ -154,11 +164,14 @@ impl PlatformAPI for Metaculus {
     }
     fn some_markets(&self) -> Vec<MarketStatus> {
         let url = format!("https://www.metaculus.com/api2/questions/?forecast_type=binary&type=forecast&limit={}&order_by=-activity&status=open", self.fetch_limit);
-        let response = ureq::get(url.as_str())
-            .call()
-            .unwrap()
-            .into_string()
-            .expect("body");
+        let call = ureq::get(url.as_str()).call();
+        let response = match call {
+            Ok(c) => c.into_string().expect("body"),
+            Err(e) => {
+                warn!("{:?}", e);
+                return vec![];
+            }
+        };
         let mut ret = vec![];
         if let Ok(j) = json::parse(response.as_str()) {
             for o in j["results"].members() {
@@ -221,12 +234,16 @@ impl PlatformAPI for Polymarket {
             query.replace(r#"""#, r#"\""#).replace("\n", "")
         );
         let graphql_endpoint = "https://gamma-api.polymarket.com/query";
-        let response = ureq::post(graphql_endpoint)
+        let call = ureq::post(graphql_endpoint)
             .set("Content-Type", "application/json")
-            .send_string(json_query.as_str())
-            .expect("response")
-            .into_string()
-            .expect("text body");
+            .send_string(json_query.as_str());
+        let response = match call {
+            Ok(c) => c.into_string().expect("body"),
+            Err(e) => {
+                warn!("{:?}", e);
+                return vec![];
+            }
+        };
         if let Ok(j) = json::parse(response.as_str()) {
             for o in j["data"]["markets"].members() {
                 let _traders = o["liquidity"].clone();
