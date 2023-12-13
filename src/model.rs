@@ -40,10 +40,7 @@ impl Model {
     pub fn most_noteworthy_change(&self) -> Option<Change> {
         let mut most_noteworthy = Change::new(Duration::Week, 0.5);
         let previous = last_publications(&self.c);
-        let ago = match duration_since_last_update(&self.c) {
-            Some(d) => d + chrono::Duration::minutes(10),
-            None => chrono::Duration::minutes(10),
-        };
+        let ago = duration_since_last_update(&self.c).unwrap_or(chrono::Duration::minutes(1));
         info!("looking {} minutes ago", ago.num_minutes());
         let timestamps = query_timestamps(&self.c, ago);
         info!("found {} candidates for news", timestamps.len());
@@ -62,10 +59,10 @@ impl Model {
             most_noteworthy.p_before, most_noteworthy.p_after
         );
         if most_noteworthy.url == "url" {
-            debug!("found nothing to even consider noteworthyness");
+            info!("found nothing to even consider noteworthyness");
             Option::None
         } else if (most_noteworthy.p_after - most_noteworthy.p_before).abs() < 0.05 {
-            debug!("not even one +5% move");
+            info!("not even one +5% move");
             Option::None
         } else {
             Option::Some(most_noteworthy)
@@ -303,7 +300,7 @@ MAX(CASE WHEN time <= DATETIME(CURRENT_TIMESTAMP, '-22 hours') AND time >= DATET
 MAX(CASE WHEN time <= DATETIME(CURRENT_TIMESTAMP, '-6 day') AND time >= DATETIME(CURRENT_TIMESTAMP, '-8 days') THEN time END) AS time_1_week_ago
 FROM probabilities
 GROUP BY platform, id;",
-         min, min+55, min+79
+         min+10, min+55, min+99
     );
     let mut s = c.prepare(query).expect("query bound");
     while let Ok(sqlite::State::Row) = s.next() {
