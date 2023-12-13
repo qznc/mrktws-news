@@ -38,7 +38,7 @@ impl Model {
     }
 
     pub fn most_noteworthy_change(&self) -> Option<Change> {
-        let mut most_noteworthy = Change::new(Duration::Week, 0.5);
+        let mut most_noteworthy = Change::new_from05(DiffDuration::Week, 0.5);
         let previous = last_publications(&self.c);
         let ago = duration_since_last_update(&self.c).unwrap_or(chrono::Duration::minutes(1));
         info!("looking {} minutes ago", ago.num_minutes());
@@ -47,11 +47,11 @@ impl Model {
         for ts in timestamps {
             let plat = &ts.platform;
             let p_now = get_prob_by_time(&self.c, plat, &ts.id, &ts.latest).expect("latest prob");
-            let c_hour = timestamp_to_change(&self.c, &ts, p_now, ts.hour.clone(), Duration::Hour);
+            let c_hour = ts.as_change(&self.c, p_now, ts.hour.clone(), DiffDuration::Hour);
             set_if_not_published(&mut most_noteworthy, c_hour, &previous);
-            let c_day = timestamp_to_change(&self.c, &ts, p_now, ts.day.clone(), Duration::Day);
+            let c_day = ts.as_change(&self.c, p_now, ts.day.clone(), DiffDuration::Day);
             set_if_not_published(&mut most_noteworthy, c_day, &previous);
-            let c_week = timestamp_to_change(&self.c, &ts, p_now, ts.week.clone(), Duration::Week);
+            let c_week = ts.as_change(&self.c, p_now, ts.week.clone(), DiffDuration::Week);
             set_if_not_published(&mut most_noteworthy, c_week, &previous);
         }
         debug!(
@@ -101,8 +101,8 @@ fn duration_since_last_update(c: &Connection) -> Option<chrono::Duration> {
     }
 }
 
-#[derive(PartialEq, Debug, Clone, Copy)]
-pub enum Duration {
+#[derive(PartialEq, Debug, Clone)]
+pub enum DiffDuration {
     Hour,
     Day,
     Week,
@@ -112,7 +112,7 @@ pub enum Duration {
 pub struct Change {
     platform: String,
     id: String,
-    duration: Duration,
+    duration: DiffDuration,
     p_before: f32,
     p_after: f32,
     url: String,
@@ -121,14 +121,16 @@ pub struct Change {
 
 impl PartialOrd for Change {
     fn partial_cmp(&self, other: &Change) -> Option<std::cmp::Ordering> {
-        let diff_left = (self.p_after - self.p_before).abs() * diff_factor(self.duration);
-        let diff_right = (other.p_after - other.p_before).abs() * diff_factor(other.duration);
+        dbg!("--------------", self, other);
+        let diff_left = (self.p_after - self.p_before).abs() * diff_factor(&self.duration);
+        let diff_right = (other.p_after - other.p_before).abs() * diff_factor(&other.duration);
+        dbg!(diff_left, diff_right);
         diff_left.partial_cmp(&diff_right)
     }
 }
 
 impl Change {
-    fn new(duration: Duration, p_after: f32) -> Self {
+    fn new_from05(duration: DiffDuration, p_after: f32) -> Self {
         Change {
             platform: "platform".to_string(),
             id: "id".to_string(),
@@ -139,13 +141,30 @@ impl Change {
             title: "title".to_string(),
         }
     }
+
+    pub fn to_string(&self) -> String {
+        let diff = 100.0 * (self.p_after - self.p_before);
+        let emoji = if diff >= 0.0 { "📈" } else { "📉" };
+        format!(
+            "{} {:+.0}% in {}: {}\n{}",
+            emoji,
+            diff,
+            match self.duration {
+                DiffDuration::Hour => "an hour",
+                DiffDuration::Day => "a day",
+                DiffDuration::Week => "a week",
+            },
+            self.title,
+            self.url,
+        )
+    }
 }
 
-fn diff_factor(d: Duration) -> f32 {
+fn diff_factor(d: &DiffDuration) -> f32 {
     match d {
-        Duration::Hour => 168.0,
-        Duration::Day => 7.0,
-        Duration::Week => 1.0,
+        DiffDuration::Hour => 168.0,
+        DiffDuration::Day => 7.0,
+        DiffDuration::Week => 1.0,
     }
 }
 
@@ -154,15 +173,15 @@ mod tests {
     use super::*;
     #[test]
     fn change_comparison() {
-        let a = Change::new(Duration::Day, 0.4);
-        let b = Change::new(Duration::Day, 0.1);
+        let a = Change::new_from05(DiffDuration::Day, 0.45);
+        let b = Change::new_from05(DiffDuration::Day, 0.44);
         assert!(a < b);
-        let b = Change::new(Duration::Day, 0.9);
-        assert!(a < b);
-        let b = Change::new(Duration::Hour, 0.45);
-        assert!(a < b);
-        let b = Change::new(Duration::Week, 0.1);
-        assert!(a < b);
+        let c = Change::new_from05(DiffDuration::Day, 0.56);
+        assert!(a < c);
+        let d = Change::new_from05(DiffDuration::Hour, 0.49);
+        assert!(a < d);
+        let e = Change::new_from05(DiffDuration::Week, 0.1);
+        assert!(a < e);
     }
 }
 
@@ -208,48 +227,8 @@ fn previous_probability(c: &Connection, platform: &str, id: &str) -> Option<f32>
     }
 }
 
-pub fn as_change_str(c: &Change) -> String {
-    let diff = 100.0 * (c.p_after - c.p_before);
-    let emoji = if diff >= 0.0 { "📈" } else { "📉" };
-    format!(
-        "{} {:+.0}% in {}: {}\n{}",
-        emoji,
-        diff,
-        match c.duration {
-            Duration::Hour => "an hour",
-            Duration::Day => "a day",
-            Duration::Week => "a week",
-        },
-        c.title,
-        c.url,
-    )
-}
-
-fn timestamp_to_change(
-    c: &Connection,
-    timestamp: &Timestamps,
-    p_now: f32,
-    t: Option<String>,
-    duration: Duration,
-) -> Option<Change> {
-    let ts = t?;
-    let platform = timestamp.platform.as_str();
-    let id = timestamp.id.as_str();
-    let p_before = get_prob_by_time(c, platform, id, &ts)?;
-    let u_t = get_details(c, platform, id);
-    Option::Some(Change {
-        platform: timestamp.platform.clone(),
-        id: timestamp.id.clone(),
-        duration,
-        p_before,
-        p_after: p_now,
-        url: u_t.0,
-        title: u_t.1,
-    })
-}
-
 #[derive(Debug)]
-struct Timestamps {
+struct Timestamp {
     platform: String,
     id: String,
     latest: String,
@@ -258,12 +237,37 @@ struct Timestamps {
     week: Option<String>,
 }
 
+impl Timestamp {
+    fn as_change(
+        &self,
+        c: &Connection,
+        p_now: f32,
+        t: Option<String>,
+        duration: DiffDuration,
+    ) -> Option<Change> {
+        let ts = t?;
+        let platform = self.platform.as_str();
+        let id = self.id.as_str();
+        let p_before = get_prob_by_time(c, platform, id, &ts)?;
+        let u_t = get_details(c, platform, id);
+        Option::Some(Change {
+            platform: self.platform.clone(),
+            id: self.id.clone(),
+            duration,
+            p_before,
+            p_after: p_now,
+            url: u_t.0,
+            title: u_t.1,
+        })
+    }
+}
+
 fn get_prob_by_time(c: &Connection, platform: &str, id: &str, time: &str) -> Option<f32> {
     let query = "SELECT prob FROM probabilities WHERE platform=? AND id=? AND time=?;";
-    let mut s = c.prepare(query).expect("prepare");
-    s.bind((1, platform)).expect("bind 1");
-    s.bind((2, id)).expect("bind 2");
-    s.bind((3, time)).expect("bind 3");
+    let mut s = c.prepare(query).ok()?;
+    s.bind((1, platform)).ok()?;
+    s.bind((2, id)).ok();
+    s.bind((3, time)).ok()?;
     if let Ok(sqlite::State::Row) = s.next() {
         if let Ok(prob) = s.read::<f64, _>("prob") {
             Option::Some(prob as f32)
@@ -289,7 +293,7 @@ fn get_details(c: &Connection, platform: &str, id: &str) -> (String, String) {
     }
 }
 
-fn query_timestamps(c: &Connection, minutes_ago: chrono::Duration) -> Vec<Timestamps> {
+fn query_timestamps(c: &Connection, minutes_ago: chrono::Duration) -> Vec<Timestamp> {
     let mut ret = vec![];
     let min = minutes_ago.num_minutes();
     let query = format!(
@@ -316,7 +320,7 @@ GROUP BY platform, id;",
         if hour.is_none() && day.is_none() && week.is_none() {
             continue; // no previous data about this market
         }
-        let timestamps = Timestamps {
+        let timestamps = Timestamp {
             platform: s.read::<String, _>("platform").expect("field"),
             id: s.read::<String, _>("id").expect("id field"),
             latest,

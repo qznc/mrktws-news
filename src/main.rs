@@ -82,7 +82,7 @@ fn main() {
     let tooter = get_tooter(config);
     if args.get_flag("publish") {
         if let Some(q) = db.most_noteworthy_change() {
-            let msg = as_change_str(&q);
+            let msg = q.to_string();
             info!("Most noteworthy change: {}", msg);
             let since = db.duration_since_last_publication();
             if since.num_hours() > 4 {
