@@ -89,13 +89,15 @@ fn main() {
                 let msg = q.to_string();
                 info!("Most noteworthy change: {}", msg);
                 let since = db.duration_since_last_publication();
-                if since.num_hours() > 4 {
+                let wait = get_hours_silent(&config, 4);
+                if since.num_hours() > wait {
                     tooter.expect("tooter").toot(msg);
                     db.log_publication(q);
                 } else {
                     info!(
-                        "Skip publication cause last one was only {} minutes ago.",
-                        since.num_minutes()
+                        "Skip publication cause last one was only {} minutes ago not {} hours yet.",
+                        since.num_minutes(),
+                        wait
                     )
                 }
             } else {
@@ -104,6 +106,16 @@ fn main() {
         });
     } else {
         info!("skip publication");
+    }
+}
+
+fn get_hours_silent(config: &Option<Ini>, default: i64) -> i64 {
+    if let Some(c) = config {
+        c["general"]["hours-silent"]
+            .parse::<i64>()
+            .unwrap_or(default)
+    } else {
+        default
     }
 }
 

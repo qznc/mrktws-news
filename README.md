@@ -10,5 +10,4 @@ However, multi-choice might also be a "market group" if parts resolve separately
 
 ## Next Steps
 
-* skip time via ini file
 * use tags to publish
