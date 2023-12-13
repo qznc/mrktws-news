@@ -64,8 +64,8 @@ impl Model {
         if most_noteworthy.url == "url" {
             debug!("found nothing to even consider noteworthyness");
             Option::None
-        } else if (most_noteworthy.p_after - most_noteworthy.p_before).abs() < 0.02 {
-            debug!("not even one +2% move");
+        } else if (most_noteworthy.p_after - most_noteworthy.p_before).abs() < 0.05 {
+            debug!("not even one +5% move");
             Option::None
         } else {
             Option::Some(most_noteworthy)
@@ -146,9 +146,9 @@ impl Change {
 
 fn diff_factor(d: Duration) -> f32 {
     match d {
-        Duration::Hour => 10.0,
-        Duration::Day => 5.0,
-        Duration::Week => 2.0,
+        Duration::Hour => 168.0,
+        Duration::Day => 7.0,
+        Duration::Week => 1.0,
     }
 }
 

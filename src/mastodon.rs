@@ -33,7 +33,7 @@ impl Mastodon {
                 debug!("error status {}: {:?}", code, response);
             }
             Err(_) => {
-                debug!("some kind of io/transport error");
+                error!("some kind of io/transport error");
             }
         };
     }
