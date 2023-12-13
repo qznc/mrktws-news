@@ -121,10 +121,8 @@ pub struct Change {
 
 impl PartialOrd for Change {
     fn partial_cmp(&self, other: &Change) -> Option<std::cmp::Ordering> {
-        dbg!("--------------", self, other);
         let diff_left = (self.p_after - self.p_before).abs() * diff_factor(&self.duration);
         let diff_right = (other.p_after - other.p_before).abs() * diff_factor(&other.duration);
-        dbg!(diff_left, diff_right);
         diff_left.partial_cmp(&diff_right)
     }
 }
