@@ -47,56 +47,61 @@ fn main() {
     let config = Ini::load_from_file(ini_path.as_str()).ok();
 
     let db = Model::new(args.get_one::<String>("database").unwrap());
-    let platforms: Vec<Box<dyn PlatformAPI>> = match args.get_flag("get_some") {
-        true => {
-            vec![
-                Metaculus::new_boxed(get_fetch_limit(&config, "metaculus", 100)),
-                Polymarket::new_boxed(get_fetch_limit(&config, "polymarket", 100)),
-                Manifold::new_boxed(get_fetch_limit(&config, "manifold", 100)),
-            ]
-        }
-        false => {
-            vec![]
-        }
-    };
-    for p in platforms {
-        let ms = p.some_markets();
-        info!("fetched {} markets from {}", ms.len(), p.id());
-        for s in ms {
-            let p = s.platform.to_string();
-            if s.prob >= 0.0 && s.prob <= 1.0 {
-                let t = s.title.clone();
-                if let Some(_f64) = db.update_prob(s.time, p.as_str(), s.id, s.prob, s.url, s.title)
-                {
-                } else {
-                    debug!("No prev prob {} '{}' {:.1}%", p, t, s.prob * 100.0);
-                }
-            } else {
-                debug!("ignore {} '{}' {}", p, s.title, s.prob);
+    db.transact(&|| {
+        let platforms: Vec<Box<dyn PlatformAPI>> = match args.get_flag("get_some") {
+            true => {
+                vec![
+                    Metaculus::new_boxed(get_fetch_limit(&config, "metaculus", 100)),
+                    Polymarket::new_boxed(get_fetch_limit(&config, "polymarket", 100)),
+                    Manifold::new_boxed(get_fetch_limit(&config, "manifold", 100)),
+                ]
             }
+            false => {
+                vec![]
+            }
+        };
+        for p in platforms {
+            let ms = p.some_markets();
+            info!("fetched {} markets from {}", ms.len(), p.id());
+            for s in ms {
+                let p = s.platform.to_string();
+                if s.prob >= 0.0 && s.prob <= 1.0 {
+                    let t = s.title.clone();
+                    if let Some(_f64) =
+                        db.update_prob(s.time, p.as_str(), s.id, s.prob, s.url, s.title)
+                    {
+                    } else {
+                        debug!("No prev prob {} '{}' {:.1}%", p, t, s.prob * 100.0);
+                    }
+                } else {
+                    debug!("ignore {} '{}' {}", p, s.title, s.prob);
+                }
+            }
+            info!("stored probabilities from {}", p.id());
         }
-        info!("stored probabilities from {}", p.id());
-    }
+    });
     info!("fetching part done");
 
-    let tooter = get_tooter(config);
     if args.get_flag("publish") {
-        if let Some(q) = db.most_noteworthy_change() {
-            let msg = q.to_string();
-            info!("Most noteworthy change: {}", msg);
-            let since = db.duration_since_last_publication();
-            if since.num_hours() > 4 {
-                tooter.expect("tooter").toot(msg);
-                db.log_publication(q);
+        db.transact(&|| {
+            let tooter = get_tooter(config.clone());
+            if let Some(q) = db.most_noteworthy_change() {
+                let msg = q.to_string();
+                info!("Most noteworthy change: {}", msg);
+                let since = db.duration_since_last_publication();
+                if since.num_hours() > 4 {
+                    tooter.expect("tooter").toot(msg);
+                    db.log_publication(q);
+                } else {
+                    info!(
+                        "Skip publication cause last one was only {} minutes ago.",
+                        since.num_minutes()
+                    )
+                }
             } else {
-                info!(
-                    "Skip publication cause last one was only {} minutes ago.",
-                    since.num_minutes()
-                )
+                info!("no noteworthy change");
             }
-        } else {
-            info!("no noteworthy change");
-        }
+        });
     } else {
         info!("skip publication");
     }

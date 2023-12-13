@@ -15,6 +15,14 @@ impl Model {
         db
     }
 
+    pub fn transact(&self, f: &dyn Fn()) {
+        debug!("transation begin");
+        self.c.execute("BEGIN TRANSACTION;").expect("begin");
+        f();
+        self.c.execute("COMMIT;").expect("begin");
+        debug!("transaction commit");
+    }
+
     /// Archive new probability info
     /// Returns previous probability
     pub fn update_prob(
