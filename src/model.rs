@@ -152,16 +152,17 @@ impl Change {
         let diff = 100.0 * (self.p_after - self.p_before);
         let emoji = if diff >= 0.0 { "📈" } else { "📉" };
         format!(
-            "{} {:+.0}% in {}: {}\n{}",
-            emoji,
+            "{:+.0}% in {} {} {}\n{} #prediction #{}",
             diff,
             match self.duration {
                 DiffDuration::Hour => "an hour",
                 DiffDuration::Day => "a day",
                 DiffDuration::Week => "a week",
             },
+            emoji,
             self.title,
             self.url,
+            self.platform,
         )
     }
 }
