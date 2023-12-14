@@ -169,8 +169,8 @@ impl Change {
 
 fn diff_factor(d: &DiffDuration) -> f32 {
     match d {
-        DiffDuration::Hour => 168.0,
-        DiffDuration::Day => 7.0,
+        DiffDuration::Hour => 2.0 * 2.0,
+        DiffDuration::Day => 2.0,
         DiffDuration::Week => 1.0,
     }
 }
@@ -182,13 +182,27 @@ mod tests {
     fn change_comparison() {
         let a = Change::new_from05(DiffDuration::Day, 0.45);
         let b = Change::new_from05(DiffDuration::Day, 0.44);
-        assert!(a < b);
+        assert!(a < b); // -5% < -6% change
         let c = Change::new_from05(DiffDuration::Day, 0.56);
-        assert!(a < c);
-        let d = Change::new_from05(DiffDuration::Hour, 0.49);
-        assert!(a < d);
-        let e = Change::new_from05(DiffDuration::Week, 0.1);
-        assert!(a < e);
+        assert!(a < c); // -5% < +6% change
+        let d = Change::new_from05(DiffDuration::Day, 0.46);
+        assert!(a > d); // -5% < -4% change
+        let e = Change::new_from05(DiffDuration::Hour, 0.47);
+        assert!(a < e); // -5% day < -3% hour
+        let f = Change::new_from05(DiffDuration::Week, 0.1);
+        assert!(a < f); // -5% day < -40% week
+    }
+    #[test]
+    fn change_comparison2() {
+        let a = Change::new_from05(DiffDuration::Day, 0.7);
+        let b = Change::new_from05(DiffDuration::Week, 0.89);
+        assert!(a > b); // +20 day > +39% week
+        let c = Change::new_from05(DiffDuration::Week, 0.91);
+        assert!(a < c); // +20 day < +39% week
+        let d = Change::new_from05(DiffDuration::Hour, 0.61);
+        assert!(a < d); // +20% day < +11% hour
+        let e = Change::new_from05(DiffDuration::Hour, 0.59);
+        assert!(a > e); // +20% day > +9% hour
     }
 }
 
