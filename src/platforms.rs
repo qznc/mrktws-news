@@ -266,14 +266,17 @@ impl PlatformAPI for Polymarket {
 }
 
 fn parse_polymarket(o: &JsonValue) -> Option<MarketStatus> {
-    let _traders = o["liquidity"].clone();
+    let volume24hr = o["volume24hr"].as_f32()?;
+    let liquidity = o["liquidity"].to_string().parse::<f32>().ok()?;
+    if liquidity < 500.0 || volume24hr < 10.0 {
+        return None;
+    };
     let prices = json::parse(o["outcomePrices"].as_str()?).ok()?;
     let prob = prices[0].to_string().parse::<f32>().ok()?;
     let id = o["slug"].to_string();
     let t = o["updatedAt"].as_str()?;
     let time: DateTime<Utc> = DateTime::parse_from_rfc3339(t).ok()?.with_timezone(&Utc);
-    let url =
-        "https://polymarket.com/event/https://polymarket.com/event/".to_string() + id.as_str();
+    let url = "https://polymarket.com/event/".to_string() + id.as_str();
     if o["question"].is_null() {
         return Option::None;
     }
