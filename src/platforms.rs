@@ -77,10 +77,10 @@ impl PlatformAPI for Manifold {
         let mut ret = vec![];
         if let Ok(j) = json::parse(response.as_str()) {
             for o in j.members() {
-                if 15 > o["uniqueBettorCount"].as_i32().expect("bettor count") {
+                if 25 > o["uniqueBettorCount"].as_i32().expect("bettor count") {
                     continue; // not enough bettors
                 }
-                if 200.0 > o["volume"].as_f32().expect("volume") {
+                if 400.0 > o["volume"].as_f32().expect("volume") {
                     continue; // not enough volume
                 }
                 let id = o["id"].to_string();

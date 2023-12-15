@@ -90,7 +90,7 @@ fn main() {
                 info!("Most noteworthy change: {}", msg);
                 let since = db.duration_since_last_publication();
                 let wait = get_hours_silent(&config, 4);
-                if since.num_hours() > wait {
+                if since.num_minutes() >= wait * 60 - 10 {
                     tooter.expect("tooter").toot(msg);
                     db.log_publication(q);
                 } else {
