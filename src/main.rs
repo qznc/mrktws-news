@@ -62,13 +62,15 @@ fn main() {
         };
         for p in platforms {
             let ms = p.some_markets();
+            let time = chrono::Utc::now();
             info!("fetched {} markets from {}", ms.len(), p.id());
             for s in ms {
                 let p = s.platform.to_string();
                 if s.prob >= 0.0 && s.prob <= 1.0 {
                     let t = s.title.clone();
                     if let Some(_f64) =
-                        db.update_prob(s.time, p.as_str(), s.id, s.prob, s.url, s.title)
+                        // ignore s.time, since the probability is what it is "now"
+                        db.update_prob(time, p.as_str(), s.id, s.prob, s.url, s.title)
                     {
                     } else {
                         debug!("No prev prob {} '{}' {:.1}%", p, t, s.prob * 100.0);
