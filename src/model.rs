@@ -169,7 +169,7 @@ impl Change {
 
 fn diff_factor(d: &DiffDuration) -> f32 {
     match d {
-        DiffDuration::Hour => 2.0 * 2.0,
+        DiffDuration::Hour => 2.0 * 3.0,
         DiffDuration::Day => 2.0,
         DiffDuration::Week => 1.0,
     }
@@ -199,10 +199,10 @@ mod tests {
         assert!(a > b); // +20 day > +39% week
         let c = Change::new_from05(DiffDuration::Week, 0.91);
         assert!(a < c); // +20 day < +39% week
-        let d = Change::new_from05(DiffDuration::Hour, 0.61);
-        assert!(a < d); // +20% day < +11% hour
-        let e = Change::new_from05(DiffDuration::Hour, 0.59);
-        assert!(a > e); // +20% day > +9% hour
+        let d = Change::new_from05(DiffDuration::Hour, 0.65);
+        assert!(a < d); // +20% day < +15% hour
+        let e = Change::new_from05(DiffDuration::Hour, 0.56);
+        assert!(a > e); // +20% day > +6% hour
     }
 }
 
