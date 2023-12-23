@@ -69,8 +69,8 @@ impl Model {
         if most_noteworthy.url == "url" {
             info!("found nothing to even consider noteworthyness");
             Option::None
-        } else if (most_noteworthy.p_after - most_noteworthy.p_before).abs() < 0.05 {
-            info!("not even one +5% move");
+        } else if (most_noteworthy.p_after - most_noteworthy.p_before).abs() < 0.2 {
+            info!("not even one 20% move");
             Option::None
         } else {
             Option::Some(most_noteworthy)

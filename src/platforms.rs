@@ -77,10 +77,12 @@ impl PlatformAPI for Manifold {
         let mut ret = vec![];
         if let Ok(j) = json::parse(response.as_str()) {
             for o in j.members() {
-                if 25 > o["uniqueBettorCount"].as_i32().expect("bettor count") {
+                let bettors = o["uniqueBettorCount"].as_i32().expect("bettor count");
+                if 55 > bettors {
                     continue; // not enough bettors
                 }
-                if 400.0 > o["volume"].as_f32().expect("volume") {
+                let volume = o["volume"].as_f32().expect("volume");
+                if 500.0 > volume {
                     continue; // not enough volume
                 }
                 let id = o["id"].to_string();
@@ -103,7 +105,7 @@ impl PlatformAPI for Manifold {
                         ret.push(status);
                     }
                     "MULTIPLE_CHOICE" | "FREE_RESPONSE" => {
-                        let api_url = format!("https://api.manifold.markets/v0/market?id={}", id);
+                        let api_url = format!("https://api.manifold.markets/v0/market/{}", id);
                         let call = ureq::get(api_url.as_str()).call();
                         let response = match call {
                             Ok(c) => c.into_string().expect("body"),
@@ -113,7 +115,15 @@ impl PlatformAPI for Manifold {
                             }
                         };
                         if let Ok(d) = json::parse(response.as_str()) {
-                            for a in d["answers"].members() {
+                            let members = d["answers"].members();
+                            let count = members.clone().count();
+                            if 100.0 > (volume / count as f32) {
+                                continue; //not enough average volume
+                            }
+                            for a in members {
+                                if 100.0 > a["totalLiquidity"].as_f64().expect("number") {
+                                    continue; // not enough liquidity
+                                }
                                 let a_title = a["text"].to_string();
                                 let a_id = if a.has_key("index") {
                                     a["index"].as_f32().expect("index") as i32
