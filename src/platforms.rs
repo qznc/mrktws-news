@@ -122,18 +122,10 @@ impl PlatformAPI for Manifold {
                             }
                             for a in members {
                                 let a_title = a["text"].to_string();
-                                let a_id = if a.has_key("index") {
-                                    a["index"].as_f32().expect("index") as i32
-                                } else if a.has_key("number") {
-                                    a["number"].as_f32().expect("number") as i32
-                                } else {
-                                    error!("answer without index nor number: {:#?}", a);
-                                    -1
-                                };
                                 let prob = a["probability"].as_f32().unwrap_or(-1.0);
                                 let status = MarketStatus {
                                     platform: Platform::Manifold,
-                                    id: format!("{} {}", id, a_id),
+                                    id: id.clone(),
                                     prob,
                                     time,
                                     url: url.clone(),
