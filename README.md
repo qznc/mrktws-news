@@ -10,5 +10,4 @@ However, multi-choice might also be a "market group" if parts resolve separately
 
 ## Next Steps
 
-* fix Polymarket url
 * use tags to publish

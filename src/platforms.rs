@@ -231,7 +231,7 @@ impl PlatformAPI for Polymarket {
         let mut ret = vec![];
         let query = format!(
             r#"{{ markets(limit: {}, order: "updated_at DESC")
-                       {{ question, outcomePrices, slug, volume24hr, liquidity, updatedAt}} }}"#,
+                       {{ question, outcomePrices, slug, volume24hr, liquidity, updatedAt, events {{ slug }} }} }}"#,
             self.fetch_limit
         );
         let json_query = format!(
@@ -275,9 +275,13 @@ fn parse_polymarket(o: &JsonValue) -> Option<MarketStatus> {
     let id = o["slug"].to_string();
     let t = o["updatedAt"].as_str()?;
     let time: DateTime<Utc> = DateTime::parse_from_rfc3339(t).ok()?.with_timezone(&Utc);
-    let url = "https://polymarket.com/event/".to_string() + id.as_str();
+    let mut url: String = "broken".to_string();
     if o["question"].is_null() {
         return Option::None;
+    }
+    for e in o["events"].members() {
+        let e_slug = e["slug"].to_string();
+        url = format!("https://polymarket.com/event/{}/{}", e_slug, id);
     }
     let title = o["question"].to_string();
     let platform = Platform::Polymarket;
