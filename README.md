@@ -10,4 +10,7 @@ However, multi-choice might also be a "market group" if parts resolve separately
 
 ## Next Steps
 
+* fix cargo license warning
+* remove multiple ids for multi-choice markets
+* fix Polymarket url
 * use tags to publish

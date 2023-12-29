@@ -121,9 +121,6 @@ impl PlatformAPI for Manifold {
                                 continue; //not enough average volume
                             }
                             for a in members {
-                                if 100.0 > a["totalLiquidity"].as_f64().expect("number") {
-                                    continue; // not enough liquidity
-                                }
                                 let a_title = a["text"].to_string();
                                 let a_id = if a.has_key("index") {
                                     a["index"].as_f32().expect("index") as i32
