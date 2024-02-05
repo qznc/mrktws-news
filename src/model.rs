@@ -78,8 +78,11 @@ impl Model {
     }
     pub fn log_publication(&self, c: Change) {
         let q = "INSERT INTO log (type, content) VALUES ('pub', ?);";
+        // multiple-choice markets get a postfix for each answer
+        // ignore the postfix for logging
+        let id = c.id.split_ascii_whitespace().next().expect("some id");
         let mut s = self.c.prepare(q).expect("prep check");
-        s.bind((1, format!("{} {}", c.platform, c.id).as_str()))
+        s.bind((1, format!("{} {}", c.platform, id).as_str()))
             .expect("bind");
         s.next().expect("execute");
         info!("log pub {} {}", c.platform, c.id);
