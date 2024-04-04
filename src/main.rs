@@ -10,13 +10,7 @@ use log::*;
 
 fn arguments() -> Command {
     Command::new("marketwise-news")
-        .version("0.1")
-        .arg(
-            Arg::new("database")
-                .long("database")
-                .default_value(":memory:")
-                .help("SQLite database to use"),
-        )
+        .version("0.2")
         .arg(
             Arg::new("get_some")
                 .long("get-some")
@@ -46,7 +40,7 @@ fn main() {
     let ini_path = args.get_one::<String>("ini").expect("ini");
     let config = Ini::load_from_file(ini_path.as_str()).ok();
 
-    let db = Model::new(args.get_one::<String>("database").unwrap());
+    let db = get_model(&config);
     db.transact(&|| {
         let platforms: Vec<Box<dyn PlatformAPI>> = match args.get_flag("get_some") {
             true => {
@@ -119,6 +113,16 @@ fn get_hours_silent(config: &Option<Ini>, default: i64) -> i64 {
     } else {
         default
     }
+}
+
+fn get_model(config: &Option<Ini>) -> Model {
+    let s: &str = if let Some(c) = config {
+        &c["general"]["database"]
+    } else {
+        ":memory:"
+    };
+
+    Model::new(s)
 }
 
 fn get_fetch_limit(config: &Option<Ini>, name: &str, default: i32) -> i32 {
