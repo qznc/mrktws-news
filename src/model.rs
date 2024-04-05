@@ -377,7 +377,7 @@ fn set_if_not_published(a: &mut Change, b: Option<Change>, previous: &Vec<String
     }
     let next_id = format!("{} {}", next.platform, next.id);
     for p in previous {
-        if p == &next_id {
+        if next_id.starts_with(p) {
             return; // already published
         }
     }
