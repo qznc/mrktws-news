@@ -88,8 +88,10 @@ impl PlatformAPI for Manifold {
                 let id = o["id"].to_string();
                 let url = format!("{}?r=bWFya3R3c2U", o["url"]);
                 let title = o["question"].to_string();
-                if title.contains("🏈") {
-                    continue; // skip list
+                for x in ["🏒", "⚾", "🏈", "🏀", "🏎️ ", "🏇"] {
+                    if title.contains(x) {
+                        continue; // skip list
+                    }
                 }
                 let time = from_manifold_timestamp(o["lastBetTime"].as_f64());
                 debug!("Manifold timestamp {:?}", time);
