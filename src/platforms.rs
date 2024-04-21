@@ -85,16 +85,14 @@ impl PlatformAPI for Manifold {
                 if 500.0 > volume {
                     continue; // not enough volume
                 }
+                let title = o["question"].to_string();
+                if !allowed_title(&title) {
+                    continue;
+                }
+                info!("Allowed: {}", title);
                 let id = o["id"].to_string();
                 let url = format!("{}?r=bWFya3R3c2U", o["url"]);
-                let title = o["question"].to_string();
-                for x in ["🏒", "⚾", "🏈", "🏀", "🏎️ ", "🏇"] {
-                    if title.contains(x) {
-                        continue; // skip list
-                    }
-                }
                 let time = from_manifold_timestamp(o["lastBetTime"].as_f64());
-                debug!("Manifold timestamp {:?}", time);
                 let outcome_type = o["outcomeType"].as_str().expect("outcome type");
                 match outcome_type {
                     "BINARY" => {
@@ -148,8 +146,11 @@ impl PlatformAPI for Manifold {
                             }
                         }
                     }
+                    "STONK" => {
+                        // ignore
+                    }
                     _ => {
-                        debug!("Unhandled outcome type {}", outcome_type);
+                        warn!("Unhandled outcome type {}", outcome_type);
                         continue;
                     }
                 }
@@ -159,6 +160,35 @@ impl PlatformAPI for Manifold {
         };
         ret
     }
+}
+
+fn allowed_title(title: &String) -> bool {
+    let lowercase_title = title.to_lowercase();
+    for x in [
+        "[add responses]",
+        "[add your own]",
+        "🏒",
+        "⚾",
+        "🏈",
+        "🏀",
+        "🏎️ ",
+        "🏇",
+        "⚽",
+        "🏟️ ",
+        "semifinals",
+        "playoffs",
+        "basketball games live",
+        "champions league",
+        "regular season matches",
+        "than the previous day",
+        "good tweet or bad tweet",
+    ] {
+        if lowercase_title.contains(x) {
+            info!("NOT allowed: {}", lowercase_title);
+            return false;
+        }
+    }
+    true
 }
 
 fn from_manifold_timestamp(o: Option<f64>) -> DateTime<Utc> {
