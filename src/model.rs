@@ -19,7 +19,7 @@ impl Model {
         debug!("transation begin");
         self.c.execute("BEGIN TRANSACTION;").expect("begin");
         f();
-        self.c.execute("COMMIT;").expect("begin");
+        self.c.execute("COMMIT;").expect("commit");
         debug!("transaction commit");
     }
 
@@ -289,9 +289,9 @@ impl Timestamp {
 fn get_prob_by_time(c: &Connection, platform: &str, id: &str, time: &str) -> Option<f32> {
     let query = "SELECT prob FROM probabilities WHERE platform=? AND id=? AND time=?;";
     let mut s = c.prepare(query).ok()?;
-    s.bind((1, platform)).ok()?;
+    s.bind((1, platform)).ok();
     s.bind((2, id)).ok();
-    s.bind((3, time)).ok()?;
+    s.bind((3, time)).ok();
     if let Ok(sqlite::State::Row) = s.next() {
         if let Ok(prob) = s.read::<f64, _>("prob") {
             Option::Some(prob as f32)
@@ -395,6 +395,7 @@ fn init_tables(c: &Connection) {
     CREATE TABLE log (time DATETIME DEFAULT CURRENT_TIMESTAMP, type TEXT, content TEXT);
     INSERT INTO log (type, content) VALUES (\"creation\", \"hello world\");
     CREATE TABLE probabilities(time DATETIME DEFAULT CURRENT_TIMESTAMP, platform TEXT, id TEXT, prob REAL);
+    CREATE INDEX idx_probabilities_platform_id_time ON probabilities(platform, id, time);
     CREATE TABLE details (platform TEXT, id TEXT, title TEXT, url TEXT);";
     c.execute(query).expect("sql init");
 }
