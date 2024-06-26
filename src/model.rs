@@ -98,6 +98,12 @@ impl Model {
             chrono::Duration::zero()
         }
     }
+
+    pub(crate) fn pragma_optimize(&self) {
+        // sqlite suggests to run this "once, just prior to closing each database connection"
+        // https://www.sqlite.org/lang_analyze.html
+        self.c.execute("PRAGMA optimize;").ok();
+    }
 }
 
 fn duration_since_last_update(c: &Connection) -> Option<chrono::Duration> {
