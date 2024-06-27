@@ -98,8 +98,14 @@ impl Model {
             chrono::Duration::zero()
         }
     }
+}
 
-    pub(crate) fn pragma_optimize(&self) {
+impl Drop for Model {
+    fn drop(&mut self) {
+        // we only care about probablities from a week ago
+        let query = "DELETE FROM probabilities WHERE time < datetime('now', '-10 days');";
+        self.c.execute(query).expect("Delete old probabilities");
+
         // sqlite suggests to run this "once, just prior to closing each database connection"
         // https://www.sqlite.org/lang_analyze.html
         self.c.execute("PRAGMA optimize;").ok();

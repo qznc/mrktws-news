@@ -103,8 +103,6 @@ fn main() {
     } else {
         info!("skip publication");
     }
-
-    db.pragma_optimize();
 }
 
 fn get_hours_silent(config: &Option<Ini>, default: i64) -> i64 {
