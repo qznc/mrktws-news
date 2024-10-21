@@ -45,7 +45,10 @@ fn main() {
         let platforms: Vec<Box<dyn PlatformAPI>> = match args.get_flag("get_some") {
             true => {
                 vec![
-                    Metaculus::new_boxed(get_fetch_limit(&config, "metaculus", 100)),
+                    Metaculus::new_boxed(
+                        get_fetch_limit(&config, "metaculus", 100),
+                        get_access_token(&config),
+                    ),
                     Polymarket::new_boxed(get_fetch_limit(&config, "polymarket", 100)),
                     Manifold::new_boxed(get_fetch_limit(&config, "manifold", 100)),
                 ]
@@ -125,6 +128,15 @@ fn get_model(config: &Option<Ini>) -> Model {
     Model::new(s)
 }
 
+fn get_access_token(config: &Option<Ini>) -> String {
+    if let Some(c) = config.as_ref() {
+        if let Some(section) = c.section(Some("metaculus")) {
+            return section["access-token"].to_string();
+        }
+    }
+    "no access token".to_string()
+}
+
 fn get_fetch_limit(config: &Option<Ini>, name: &str, default: i32) -> i32 {
     if config.is_none() {
         return default;
@@ -145,6 +157,5 @@ fn get_tooter(config: Option<Ini>) -> Option<Mastodon> {
     let endpoint = m_section.get("api-endpoint")?;
     let access_token = m_section.get("access-token")?;
     let m_client = Mastodon::new(endpoint.to_string(), access_token.to_string());
-    //m_client.toot("testing my bot implementation".to_string());
     Some(m_client)
 }

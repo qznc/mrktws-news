@@ -198,11 +198,15 @@ fn from_manifold_timestamp(o: Option<f64>) -> DateTime<Utc> {
 
 pub struct Metaculus {
     fetch_limit: i32,
+    access_token: String,
 }
 
 impl Metaculus {
-    pub fn new_boxed(fetch_limit: i32) -> Box<dyn PlatformAPI> {
-        Box::new(Metaculus { fetch_limit })
+    pub fn new_boxed(fetch_limit: i32, access_token: String) -> Box<dyn PlatformAPI> {
+        Box::new(Metaculus {
+            fetch_limit,
+            access_token,
+        })
     }
 }
 
@@ -211,8 +215,10 @@ impl PlatformAPI for Metaculus {
         Platform::Metaculus
     }
     fn some_markets(&self) -> Vec<MarketStatus> {
-        let url = format!("https://www.metaculus.com/api2/questions/?forecast_type=binary&type=forecast&limit={}&order_by=-activity&status=open", self.fetch_limit);
-        let call = ureq::get(url.as_str()).call();
+        let url = format!("https://www.metaculus.com/api/posts/?forecast_type=binary&limit={}&order_by=user_last_forecasts_date&statuses=open", self.fetch_limit);
+        let call = ureq::get(url.as_str())
+            .set("Authorization", self.access_token.as_str())
+            .call();
         let response = match call {
             Ok(c) => c.into_string().expect("body"),
             Err(e) => {
@@ -223,21 +229,17 @@ impl PlatformAPI for Metaculus {
         let mut ret = vec![];
         if let Ok(j) = json::parse(response.as_str()) {
             for o in j["results"].members() {
+                println!("member: {}", o);
                 let _question = o["title"].clone();
-                if 30 > o["number_of_forecasters"].as_i32().expect("num casters") {
+                if 30 > o["nr_forecasters"].as_i32().expect("num casters") {
                     continue; // not enough forecasters
                 };
                 let prob = o["community_prediction"]["full"]["q2"]
                     .as_f32()
                     .unwrap_or(-1.0);
                 let id = o["id"].to_string();
-                let t = o["last_activity_time"]
-                    .as_str()
-                    .expect("last_activity_time");
-                let time: DateTime<Utc> = DateTime::parse_from_rfc3339(t)
-                    .expect("iso8601")
-                    .with_timezone(&Utc);
-                let url = o["url"].to_string().replace("api2/", "");
+                let time = Utc::now(); // not available, assume now
+                let url = format!("https://www.metaculus.com/questions/{}", id);
                 let title = o["title"].to_string();
                 let status = MarketStatus {
                     platform: self.id(),
