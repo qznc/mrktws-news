@@ -1,4 +1,3 @@
-use chrono::prelude::*;
 use json::JsonValue;
 use log::*;
 use std::fmt;
@@ -42,7 +41,6 @@ pub struct MarketStatus {
     pub platform: Platform,
     pub id: String,
     pub prob: f32,
-    pub time: DateTime<Utc>,
     pub url: String,
     pub title: String,
 }
@@ -92,7 +90,6 @@ impl PlatformAPI for Manifold {
                 info!("Allowed: {}", title);
                 let id = o["id"].to_string();
                 let url = format!("{}?r=bWFya3R3c2U", o["url"]);
-                let time = from_manifold_timestamp(o["lastBetTime"].as_f64());
                 let outcome_type = o["outcomeType"].as_str().expect("outcome type");
                 match outcome_type {
                     "BINARY" => {
@@ -101,7 +98,6 @@ impl PlatformAPI for Manifold {
                             platform: Platform::Manifold,
                             id,
                             prob,
-                            time,
                             url,
                             title,
                         };
@@ -138,7 +134,6 @@ impl PlatformAPI for Manifold {
                                     platform: Platform::Manifold,
                                     id: format!("{} {}", id, a_id),
                                     prob,
-                                    time,
                                     url: url.clone(),
                                     title: format!("{} {}", title, a_title),
                                 };
@@ -191,11 +186,6 @@ fn allowed_title(title: &String) -> bool {
     true
 }
 
-fn from_manifold_timestamp(o: Option<f64>) -> DateTime<Utc> {
-    let t = o.expect("timestamp");
-    DateTime::from_timestamp(t as i64 / 1000, 0).expect("datetime")
-}
-
 pub struct Metaculus {
     fetch_limit: i32,
     access_token: String,
@@ -238,14 +228,12 @@ impl PlatformAPI for Metaculus {
                     .as_f32()
                     .unwrap_or(-1.0);
                 let id = o["id"].to_string();
-                let time = Utc::now(); // not available, assume now
                 let url = format!("https://www.metaculus.com/questions/{}", id);
                 let title = o["title"].to_string();
                 let status = MarketStatus {
                     platform: self.id(),
                     id,
                     prob,
-                    time,
                     url,
                     title,
                 };
@@ -318,8 +306,6 @@ fn parse_polymarket(o: &JsonValue) -> Option<MarketStatus> {
     let prices = json::parse(o["outcomePrices"].as_str()?).ok()?;
     let prob = prices[0].to_string().parse::<f32>().ok()?;
     let id = o["slug"].to_string();
-    let t = o["updatedAt"].as_str()?;
-    let time: DateTime<Utc> = DateTime::parse_from_rfc3339(t).ok()?.with_timezone(&Utc);
     let mut url: String = "broken".to_string();
     if o["question"].is_null() {
         return Option::None;
@@ -334,7 +320,6 @@ fn parse_polymarket(o: &JsonValue) -> Option<MarketStatus> {
         platform,
         id,
         prob,
-        time,
         url,
         title,
     })

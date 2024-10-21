@@ -66,7 +66,6 @@ fn main() {
                 if s.prob >= 0.0 && s.prob <= 1.0 {
                     let t = s.title.clone();
                     if let Some(_f64) =
-                        // ignore s.time, since the probability is what it is "now"
                         db.update_prob(time, p.as_str(), s.id, s.prob, s.url, s.title)
                     {
                     } else {
